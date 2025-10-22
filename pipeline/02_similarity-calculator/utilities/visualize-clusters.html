@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Brand Similarity Graph</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; color: black; }
+    #graph { width: 100%; height: 600px; }
+    .node text { font-size: 12px; fill: black; }
+    .link-label { font-size: 10px; fill: black; }
+  </style>
+</head>
+<body>
+  <h2>Brand Similarity Graph</h2>
+  <input type="text" id="brandInput" placeholder="Enter brand name">
+  <button onclick="renderGraph()">Show Similar Brands</button>
+  <div id="graph"></div>
+
+  <script>
+    const similarityMap = new Map();
+
+    async function loadData() {
+      const response = await fetch('../../../datasets/02_similarity-clusters/similar_oneway.csv');
+      const rawData = await response.text();
+      rawData.split('\n').forEach(line => {
+        const [b1, b2, scoreStr] = line.split(/\s+/);
+        if (!b1 || !b2) return; // skip malformed lines
+        const score = parseFloat(scoreStr);
+        if (!similarityMap.has(b1)) similarityMap.set(b1, []);
+        similarityMap.get(b1).push({ brand: b2, score });
+      });
+    }
+
+    function collectGraphData(startBrand, visited = new Set()) {
+      const nodes = new Set();
+      const links = [];
+
+      function recurse(brand) {
+        if (visited.has(brand)) return;
+        visited.add(brand);
+        nodes.add(brand);
+
+        const similars = similarityMap.get(brand) || [];
+        for (const { brand: otherBrand, score } of similars) {
+          nodes.add(otherBrand);
+          links.push({ source: brand, target: otherBrand, score });
+          recurse(otherBrand);
+        }
+      }
+
+      recurse(startBrand);
+      return { nodes: Array.from(nodes).map(id => ({ id })), links };
+    }
+
+    async function renderGraph() {
+      const brand = document.getElementById('brandInput').value.trim();
+      const container = document.getElementById('graph');
+      container.innerHTML = '';
+
+      if (!similarityMap.has(brand)) {
+        alert('Brand not found');
+        return;
+      }
+
+      const { nodes, links } = collectGraphData(brand);
+
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      const svg = d3.select('#graph').append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .call(d3.zoom().on('zoom', function (event) {
+          g.attr('transform', event.transform);
+        }))
+        .append('g');
+
+      const g = svg.append('g');
+
+      // Scale for link distance: high similarity (score→1) ⇒ short edge
+      const distanceScale = d3.scaleLinear()
+        .domain([1, 0])   // score 1 maps to min distance, score 0 to max
+        .range([50, 200]);
+
+      const simulation = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(links).id(d => d.id).distance(d => distanceScale(d.score)))
+        .force('charge', d3.forceManyBody().strength(-300))
+        .force('center', d3.forceCenter(width / 2, height / 2));
+
+      const link = g.append('g')
+        .attr('stroke-opacity', 0.6)
+        .selectAll('line')
+        .data(links)
+        .join('line')
+        .attr('stroke-width', d => d.score * 3)
+        .attr('stroke', d => (d.source.id === brand || d.target.id === brand) ? 'red' : '#999');
+
+      const linkLabel = g.append('g')
+        .selectAll('text')
+        .attr('stroke', '#000')
+        .data(links)
+        .join('text')
+        .attr('class', 'link-label')
+        .text(d => d.score.toFixed(2));
+
+      const node = g.append('g')
+        .attr('stroke', '#000')
+        .attr('stroke-width', 1.5)
+        .selectAll('g')
+        .data(nodes)
+        .join('g')
+        .attr('class', 'node');
+
+      node.append('circle')
+        .attr('r', 10)
+        .attr('fill', d => d.id === brand ? 'red' : '#69b3a2')
+        .call(drag(simulation));
+
+      node.append('text')
+        .text(d => d.id)
+        .attr('x', 12)
+        .attr('y', 3);
+
+      simulation.on('tick', () => {
+        link
+          .attr('x1', d => d.source.x)
+          .attr('y1', d => d.source.y)
+          .attr('x2', d => d.target.x)
+          .attr('y2', d => d.target.y);
+
+        node.attr('transform', d => `translate(${d.x},${d.y})`);
+
+        linkLabel
+          .attr('x', d => (d.source.x + d.target.x) / 2)
+          .attr('y', d => (d.source.y + d.target.y) / 2);
+      });
+
+      function drag(simulation) {
+        function dragstarted(event, d) {
+          if (!event.active) simulation.alphaTarget(0.3).restart();
+          d.fx = d.x;
+          d.fy = d.y;
+        }
+
+        function dragged(event, d) {
+          d.fx = event.x;
+          d.fy = event.y;
+        }
+
+        function dragended(event, d) {
+          if (!event.active) simulation.alphaTarget(0);
+          d.fx = null;
+          d.fy = null;
+        }
+
+        return d3.drag()
+          .on('start', dragstarted)
+          .on('drag', dragged)
+          .on('end', dragended);
+      }
+    }
+
+    window.onload = loadData;
+  </script>
+</body>
+</html>
+	

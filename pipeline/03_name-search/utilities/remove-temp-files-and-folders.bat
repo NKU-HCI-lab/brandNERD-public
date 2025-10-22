@@ -1,0 +1,1 @@
+START /wait node "remove-temp-files-and-folders.js"
