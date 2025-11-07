@@ -7,13 +7,13 @@
 const rules={
 	simplify:function(brand){
 		// Remove (R) (e.g., "SAMSUNG(R)" -> "SAMSUNG")
-		brand=brand.replace(/\(R\)/g,'').trim();
+		brand=brand.replace(/\(R|TM|C\)/g,'').trim();
 		
 		// Remove all non-ASCII, non-alphanumeric characters, leaving spaces (e.g., "SAMSUNG, INC." -> "SAMSUNG INC")
 		brand=brand.replace(/&#\d+;/g,'').replace(/[^a-zA-Z0-9\s]/g,'').trim();
 		
 		// Remove all instances of "BRAND INC" and "BRAND LLC" (e.g., "SAMSUNG LLC" -> "SAMSUNG")
-		brand=brand.replace(/[^a-zA-Z0-9]?(INC|LLC|CO)[^a-zA-Z0-9]?$/,'').trim();
+		brand=brand.replace(/[^a-zA-Z0-9]+(INC|LLC|CO)[^a-zA-Z0-9]?$/,'').trim();
 		
 		// Replaces all instances of brands starting with "BY" (e.g., "BY SAMSUNG" -> "SAMSUNG")
 		brand=brand.replace(/^BY[^a-zA-Z0-9]+/,'').trim();

@@ -1,11 +1,13 @@
 /* BEGIN SETTINGS */
 const FILE_RULES='./rules.js'; // Location of file containing the rules (input)
 const FILE_BRANDS='../../datasets/00_original/brands.csv';  // Location of file containing the brands (input)
-const FILE_CANONICAL_JSON='../../datasets/01_canonicalizated/brands_canonical.json';  // Location of JSON file containing the canonical brands (output)
-const FILE_CANONICAL_CSV='../../datasets/01_canonicalizated/brands_canonical.csv';  // Location of CSV file containing the canonical brands (output)
+const FOLDER_CANONICALIZED='../../datasets/01_canonicalized';
+const FILE_CANONICAL_JSON=`${FOLDER_CANONICALIZED}/brands_canonical.json`;  // Location of JSON file containing the canonical brands (output)
+const FILE_CANONICAL_CSV=`${FOLDER_CANONICALIZED}/brands_canonical.csv`;  // Location of CSV file containing the canonical brands (output)
 /* END SETTINGS */
 
 const fs=require('fs');
+if(!fs.existsSync(FOLDER_CANONICALIZED)) fs.mkdirSync(FOLDER_CANONICALIZED,{recursive:true});
 const rules=require(FILE_RULES); // Load the rules from rules.js
 
 // Convert brands into array and make sure it contains unique values
