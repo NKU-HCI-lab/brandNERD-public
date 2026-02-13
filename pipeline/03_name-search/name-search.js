@@ -1,6 +1,6 @@
 /* BEGIN SETTINGS */
 const FILE_RULES='../01_canonicalization/rules.js'; // Location of file containing the rules (input)
-const FILE_CANONICAL='../../datasets/01_canonicalizated/brands_canonical.json';  // Location of file containing the canonical brands (input)
+const FILE_CANONICAL='../../datasets/01_canonical/brands_canonical.json';  // Location of file containing the canonical brands (input)
 const FOLDER_RESULTS='../../datasets/03_search-results/results'; // Location of folder containing the search results
 const FILE_FAILED='../../datasets/03_search-results/failed.tsv'; // Location of file containing failed results
 const COORDINATE_CAPTCHA_X=655; // Coordinates of the "I am a human" button
@@ -25,7 +25,7 @@ if(fs.existsSync(FILE_FAILED)){
 	failed=fs.readFileSync(FILE_FAILED,'utf8').split(/[\r\n]+/g);
 }
 // Create the folder for storing the results
-if(!fs.existsSync(FOLDER_RESULTS)) fs.mkdirSync(FOLDER_RESULTS);
+if(!fs.existsSync(FOLDER_RESULTS)) fs.mkdirSync(FOLDER_RESULTS,{recursive:true});
 
 // Load brands as a unique array
 const brands_canonical=JSON.parse(fs.readFileSync(FILE_CANONICAL,'utf8'));
@@ -59,7 +59,7 @@ async function runValidator(){
 		if(failed.includes(brand_canonical)) continue;
 		process.stdout.write(`Processing ${i} - ${brand_canonical} (${Math.round((i/brands_canonical_keys.length).toFixed(4)*100,2)}%)`);
 		
-		if(fs.existsSync(`${FOLDER_RESULTS}/_${brand_canonical}.json`)){
+		if(fs.existsSync(`${FOLDER_RESULTS}/_${brand_canonical}.json`))continue;/*{
 			// read file and check that every entry has title, url, and snippet
 			const entries=JSON.parse(fs.readFileSync(`${FOLDER_RESULTS}/_${brand_canonical}.json`,'utf8'));
 			let complete=entries.length>0;
@@ -71,7 +71,7 @@ async function runValidator(){
 				process.stdout.write(`...already processed.\n`);
 				continue;
 			}
-		}
+		}*/
 		let result=await searchBrandCanonical(brand_canonical);
 	}
 	await driver.quit();
@@ -80,7 +80,7 @@ async function runValidator(){
 // Process canonical brand
 async function searchBrandCanonical(brand_canonical){
 	let canonical_found=false;
-	let brandNames=[brand_canonical].concat(brands_canonical[brand_canonical]);
+	let brandNames=[brand_canonical]//.concat(brands_canonical[brand_canonical]);
 	
 	let results=[];
 	// Process each of the brands within the canonical group
