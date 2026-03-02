@@ -10,7 +10,7 @@
 
 // region SETTINGS
 
-const threshold = 0.92;
+const threshold = 0.95;
 const FOLDER_DATASETS='../../datasets';
 const FOLDER_CANONICALIZED=`${FOLDER_DATASETS}/01_canonical`;
 const FILE_CANONICAL_CSV=`${FOLDER_DATASETS}/01_canonical/brands_canonical.csv`;

@@ -1,7 +1,8 @@
 /* BEGIN SETTINGS */
 const FILE_RULES='../01_canonicalization/rules.js'; // Location of file containing the rules (input)
 const FILE_CANONICAL='../../datasets/01_canonical/brands_canonical.json';  // Location of file containing the canonical brands (input)
-const FOLDER_RESULTS='../../datasets/03_search-results/results'; // Location of folder containing the search results
+const FOLDER_RESULTS='../../datasets/03_search-results/buy+BRAND+products'; // Location of folder containing the search results
+const FILE_VALIDATED='../../datasets/04_validated/validated.tsv'; // Location of file containing validated results
 const FILE_FAILED='../../datasets/03_search-results/failed.tsv'; // Location of file containing failed results
 const COORDINATE_CAPTCHA_X=655; // Coordinates of the "I am a human" button
 const COORDINATE_CAPTCHA_Y=272; // Coordinates of the "I am a human" button
@@ -23,6 +24,10 @@ if(!fs.existsSync(FILE_CANONICAL)){
 var failed=[];
 if(fs.existsSync(FILE_FAILED)){
 	failed=fs.readFileSync(FILE_FAILED,'utf8').split(/[\r\n]+/g);
+}
+var validated=[];
+if(fs.existsSync(FILE_VALIDATED)){
+	validated=fs.readFileSync(FILE_VALIDATED,'utf8').split(/[\r\n]+/g);
 }
 // Create the folder for storing the results
 if(!fs.existsSync(FOLDER_RESULTS)) fs.mkdirSync(FOLDER_RESULTS,{recursive:true});
@@ -56,7 +61,7 @@ async function runValidator(){
 	// loop through canonical brands
 	for(let i=START_INDEX_CANONICAL;i<brands_canonical_keys.length;i++){
 		let brand_canonical=brands_canonical_keys[i]; // Canonical brand currently under observation	
-		if(failed.includes(brand_canonical)) continue;
+		if(failed.includes(brand_canonical) || validated.includes(brand_canonical)) continue;
 		process.stdout.write(`Processing ${i} - ${brand_canonical} (${Math.round((i/brands_canonical_keys.length).toFixed(4)*100,2)}%)`);
 		
 		if(fs.existsSync(`${FOLDER_RESULTS}/_${brand_canonical}.json`))continue;/*{
@@ -102,7 +107,7 @@ async function searchBrandCanonical(brand_canonical){
 async function searchBrand(brand){
 	try{
 		// Load URL
-		const url='https://search.brave.com/search?q=buy+'+encodeURIComponent(brand);
+		const url='https://search.brave.com/search?q=buy+'+encodeURIComponent(brand)+'+products';
 		await driver.get(url);
 		setCaptchaTimeout(); // Take care of the "I am a human" captcha
 		
