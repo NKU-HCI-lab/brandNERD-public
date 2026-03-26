@@ -284,9 +284,18 @@ Example:
 
 ### 03_verified
 
-This folder contains surface brand names extracted from known websites using the brand extraction script (see INSERT_LINK). This list, which results from web searches made with the original brand names, contains brand names that appeared in the web search results. Therefore, this is a completely different set that, however, might intersect with the original list of brands.
+This folder contains the brand entities confirmed by the verification step (see `03_verification`). The verification process analyzes web search results for each canonical brand and extracts brand identifiers from known e-commerce and catalog websites. It detects brand pages using domain-specific URL patterns and applies the canonicalization rules to normalize the extracted brand names.
 
-The file `verified_surface.csv` contains a list of extracted brands initially retrieved from the website in their surface forms.
+The verification step produces three outputs:
+
+* a list of **surface brand names** observed in the search results
+* a list of **canonical brand identifiers** confirmed through parsing of brand pages
+* a **confidence report** describing how strongly each canonical brand is supported by the search results
+
+Because the verification is based on web search results, the extracted brands are not necessarily identical to the original brand list used in the search step. Instead, they represent brands that were actually observed in brand pages returned by search engines. As a result, the verified set may partially overlap with the original list but can also contain additional variants discovered during the process.
+
+
+The file `verified_surface.csv` contains the list of **surface brand names** extracted from the analyzed websites. These correspond to the brand names as they appear in page titles or URLs.
 
 Example:
 
@@ -307,7 +316,8 @@ BIL JAC
 BLACK & DECKER
 ```
 
-The file `verified_canonical.csv` contains a list of extracted canonical brand names obtained by applying the canonicalization steps (see INSERT_LINK).
+
+The file `verified_canonicals.csv` contains the **canonical brand identifiers** obtained by applying the canonicalization rules (see canonicalization step) to the extracted surface names.
 
 Example:
 
@@ -327,6 +337,42 @@ BIGJ
 BILJAC
 BLACKDECKER
 ```
+
+The file `validated_confidence.json` contains **verification statistics for each canonical brand**, allowing downstream processes to estimate how confidently a canonical corresponds to a real brand.
+
+For each canonical brand, the file records:
+
+* **t** – total number of search results analyzed for the canonical query
+* **c** – number of results where a brand page matching the canonical was detected
+* **p** – percentage of matches (`c / t * 100`), which can be used as a confidence score
+* **alt** – alternative canonicals detected in the search results when the extracted brand differs from the queried canonical
+
+Example entry:
+
+```json
+{
+  "AROAMHOUSEWARES": {
+    "t": 22,
+    "c": 0,
+    "p": 0,
+    "alt": {
+      "AROMAHOUSEWARES": 1
+    }
+  },
+  "AROMAHOUSEWARES": {
+    "t": 7,
+    "c": 7,
+    "p": 100
+  }
+}
+```
+
+In this example:
+
+* The canonical **AROAMHOUSEWARES** appears to be a misspelling: none of the 22 analyzed results matched it directly, but one result corresponds to **AROMAHOUSEWARES**.
+* The canonical **AROMAHOUSEWARES** has 7 results and all of them correspond to brand pages, resulting in a **100% confidence score**.
+
+This file enables filtering or ranking of candidate brands based on how strongly they are supported by actual brand pages found in search results. 
 
 
 
@@ -457,24 +503,42 @@ Output:
 - the collected search results for each canonical brand (`02_web-search-results/<query>/_<canonical_brand>.json`)
 - the list of brands whose searches failed (`02_web-search-results/failed.tsv`)
 
-### 03_verify
 
-The purpose of `verify.js` is to extract and confirm valid brand entities from the collected web search results.
+### 03_verification
+
+The purpose of `verify.js` is to extract and confirm valid brand entities from the collected web search results and compute a confidence score for each canonical brand.
 
 The script processes the search result files generated in the previous step and analyzes the URLs and titles of each result to detect brand identifiers. It extracts the domain from each URL and applies a set of domain-specific rules to identify brand names embedded in structured URLs (e.g., `/brand/<name>` paths used by many retail sites). For each recognized pattern, the extracted brand name is canonicalized using the same canonicalization rules from the previous step and compared against the expected canonical brand.
 
 When a brand match is confirmed, the script records the canonical brand identifier and, when available, the corresponding surface brand name observed in the search results. Domains that cannot be reliably parsed are skipped or optionally flagged for later analysis. This step therefore validates which canonical brands appear in real e-commerce or catalog pages and collects additional surface forms of the brand.
 
+In addition to validating brand occurrences, the script computes **verification statistics** for each canonical brand based on the analyzed search results:
+
+* **t (total results)** – the number of search results retrieved for the canonical query.
+* **c (confirmed matches)** – the number of pages where the brand canonical is detected through the domain-specific parsing rules.
+* **p (match percentage)** – the ratio `c/t`, expressed as a percentage. This value can be used as a **confidence score** indicating how strongly the search results confirm the brand.
+* **alt (alternative canonicals)** – alternative canonical brands detected in the results when they differ from the queried canonical. These typically represent corrections or closely related brand spellings found in the search results.
+
+For example:
+
+* Querying **AROAMHOUSEWARES** may return 22 search results (`t=22`) but no pages matching the canonical (`c=0`). Instead, several results may correspond to the brand **AROMAHOUSEWARES**, which will appear in the `alt` field.
+* Querying **AROMAHOUSEWARES** may return 7 results (`t=7`), all of which correspond to brand pages (`c=7`, `p=100%`), indicating high confidence that this canonical represents a real brand.
+
+These statistics allow downstream processes to filter or prioritize canonical brands based on how strongly they are supported by real brand pages in search results.
+
 Input:
 
-- the web search results for canonical brands (`02_web-search-results/<query>/_<canonical_brand>.json`)
-- the canonicalization rules (`01_canonicalization/_lib.canonicalization-rules.js`)
-- the optional list of domains to ignore (`02_web-search/nodomains.tsv`)
+* the web search results for canonical brands (`02_web-search-results/<query>/_<canonical_brand>.json`)
+* the canonicalization rules (`01_canonicalization/_lib.canonicalization-rules.js`)
+* the optional list of domains to ignore (`02_web-search/nodomains.tsv`)
 
 Output:
 
-- the list of verified canonical brands (`03_verified/verified_canonicals.csv`)
-- the list of verified surface brand names (`03_verified/verified_surface.csv`)
+* the list of verified canonical brands (`03_verified/verified_canonicals.csv`)
+* the list of verified surface brand names (`03_verified/verified_surface.csv`)
+* the verification confidence metrics for each canonical (`03_verified/validated_confidence.json`)
+
+The verification logic and domain-specific extraction rules are implemented in the script itself. 
 
 ### 04_validation
 

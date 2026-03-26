@@ -8,11 +8,64 @@ app.use(express.urlencoded({ extended: false }));
 
 const PORT = process.env.PORT || 3000;
 
-const INPUT_FILE = '../../datasets/03_verified/verified_canonicals.csv';
+const FOLDER_DATASETS='../../datasets';
+const FOLDER_VERIFIED = `${FOLDER_DATASETS}/03_verified`;
+const FOLDER_VALIDATED= `${FOLDER_DATASETS}/04_validated`;
+const FOLDER_RESOLVED= `${FOLDER_DATASETS}/07_resolved`;
+
+const INPUT_FILE=`${FOLDER_VERIFIED}/verified_canonicals.csv`;
+const FILE_VERIFIED_CONFIDENCE=`${FOLDER_VERIFIED}/verified_confidence.json`;
 const DATA_DIR = path.join(__dirname, "data");
-const VALID_FILE = `../../datasets/04_validated/validated.csv`;
-const INVALID_FILE = `../../datasets/04_validated/invalidated.csv`;
-const LOOKUP_FILE = `../../datasets/07_resolved/lookup.tsv`;
+const VALID_FILE =`${FOLDER_VALIDATED}/validated.csv`;
+const INVALID_FILE =`${FOLDER_VALIDATED}/invalidated.csv`;
+const LOOKUP_FILE = `${FOLDER_RESOLVED}/lookup.tsv`;
+
+
+const FILE_JAROWINKLER='../05_similarity-calculation/_lib.jarowinkler.js'; // Location of file containing the similarity calculation script
+const jaroWinkler=require(FILE_JAROWINKLER); // Load the rules from rules.js
+
+/*
+const jsonVerifiedConfidence=fs.existsSync(FILE_VERIFIED_CONFIDENCE) ? JSON.parse(fs.readFileSync(FILE_VERIFIED_CONFIDENCE,'utf8')) : {};
+var validatedBrands=fs.existsSync(VALID_FILE) ? fs.readFileSync(VALID_FILE,'utf8').split(/[\r\n]+/) : [];
+var invalidatedBrands=fs.existsSync(INVALID_FILE) ? fs.readFileSync(INVALID_FILE,'utf8').split(/[\r\n]+/) : [];
+let lookupTableTemp=fs.existsSync(LOOKUP_FILE) ? fs.readFileSync(LOOKUP_FILE,'utf8').split(/[\r\n]+/) : [];
+var lookupTable={};
+if(lookupTableTemp.length>0){
+	lookupTableTemp = [...new Set(lookupTableTemp)].sort();
+	fs.writeFileSync(LOOKUP_FILE,lookupTableTemp.join('\n')+'\n'); 
+	for(line of lookupTableTemp){
+		line=line.split(/[\t]+/);
+		lookupTable[line[0]]=line[1];
+	}
+}
+
+if(validatedBrands.length>0){
+	validatedBrands = [...new Set(validatedBrands)].sort();
+	if(validatedBrands[0].length==0) validatedBrands.shift();
+	fs.writeFileSync(VALID_FILE,validatedBrands.join('\n')+'\n'); 
+}
+if(invalidatedBrands.length>0){
+	invalidatedBrands = [...new Set(invalidatedBrands)].sort();
+	if(invalidatedBrands[0].length==0) invalidatedBrands.shift();
+	fs.writeFileSync(INVALID_FILE,invalidatedBrands.join('\n')+'\n'); 
+}
+	
+let countValidated=1;
+let keys=Object.keys(jsonVerifiedConfidence);
+for(key of keys){
+	let confidence=Math.round((jsonVerifiedConfidence[key].c/jsonVerifiedConfidence[key].t)*100);
+	if((jsonVerifiedConfidence[key].t>18 && confidence>20) || (jsonVerifiedConfidence[key].t>10 && confidence>30)){
+		if(!validatedBrands.includes(key) && !invalidatedBrands.includes(key)){
+			console.log(`${key}\t${jsonVerifiedConfidence[key].c}\t${confidence}%`);
+			validatedBrands.push(key);
+			fs.appendFileSync(VALID_FILE,key+'\n');
+			countValidated++;
+		}
+	}
+}
+console.log(countValidated);
+process.exit();
+*/
 
 
 function normalizeBrand(raw) {

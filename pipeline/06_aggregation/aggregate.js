@@ -1,7 +1,7 @@
 
 // region SETTINGS
 
-const threshold = 0.65;
+const threshold = 0.90;
 const FOLDER_DATASETS='../../datasets';
 const FOLDER_CANONICAL=`${FOLDER_DATASETS}/01_canonical`;
 const FILE_CANONICAL_CSV=`${FOLDER_CANONICAL}/brands_canonical.csv`;
@@ -63,7 +63,7 @@ function main() {
     const score = Number(parts[2]);
 
     if (!a || !b || !Number.isFinite(score)) continue;
-    if (score < threshold) continue;
+    if (score <= threshold) continue;
 
     const aInBrands = brandsSet.has(a);
     const bInBrands = brandsSet.has(b);

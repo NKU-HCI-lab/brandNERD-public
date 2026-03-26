@@ -1,550 +1,158 @@
-/*
- This script extracts known surface names from searched brands.
-*/
-
 // region SETTINGS
+const RESTART=true
+const WRITE_REPORTS=true
+const WRITEFILE_AT_EACH_ENTRY=true
+const FOLDER_DATASETS='../../datasets' // Folder containing the datasets
+const FOLDER_INPUT_SEARCHRESULTS=`${FOLDER_DATASETS}/02_web-search-results` // Folder containing the search results
+const FOLDER_OUTPUT_SEARCHRESULTS_VERIFIED=`${FOLDER_DATASETS}/03_verified` // Folder containing verified brands
+const FILE_OUTPUT_SEARCHRESULTS_VERIFIED_SURFACENAMES=`${FOLDER_OUTPUT_SEARCHRESULTS_VERIFIED}/verified_surface.csv` // File with the verified surface names
+const FILE_OUTPUT_SEARCHRESULTS_VERIFIED_CANONICALS=`${FOLDER_OUTPUT_SEARCHRESULTS_VERIFIED}/verified_canonicals.csv` // File with the verified canonical names
+const FILE_OUTPUT_VERIFIED_CONFIDENCE=`${FOLDER_OUTPUT_SEARCHRESULTS_VERIFIED}/verified_confidence.json` // File with the confidence scores
 
-const SEARCH_KEYWORD='buy+BRAND';
-const RESTART=true;
-
-const FOLDER_DATASETS='../../datasets';
-const FOLDER_SEARCHRESULTS=`${FOLDER_DATASETS}/02_web-search-results`;
-const FOLDER_SEARCHRESULTS_KEYWORD=`${FOLDER_SEARCHRESULTS}/${SEARCH_KEYWORD}`;
-const FOLDER_SEARCHRESULTS_VERIFIED=`${FOLDER_DATASETS}/03_verified`;
-
-const FILE_SEARCHRESULTS_VERIFIED_CANONICALS=`${FOLDER_SEARCHRESULTS_VERIFIED}/verified_canonicals.csv`;
-const FILE_SEARCHRESULTS_VERIFIED_SURFACENAMES=`${FOLDER_SEARCHRESULTS_VERIFIED}/verified_surface.csv`;
-
-const FILE_NODOMAINS=`../02_web-search/nodomains.tsv`;
-const FILE_RULES='../01_canonicalization/_lib.canonicalization-rules.js'; // Location of file containing the rules (input)
-const FILE_ANALYZE_LATER='./analyze_later.json';
-const FILE_PATTERNS='./patterns.json';
+const FILE_INPUT_NODOMAINS=`../02_web-search/nodomains.tsv` // File containing the domain blocklist
+const FILE_OUTPUT_ANALYZE_LATER='./analyze_later.json';
+const FILE_OUTPUT_PATTERNS='./patterns.json';
+const FILE_RULES='../01_canonicalization/_lib.canonicalization-rules.js' // File containing the canonicalization rules 
+const FOLDER_DOMAINFILTERS='./domains'
+const FOLDER_REPORTS='./reports'
+ 
 // endregion
+const fs=require('fs')
+
+// Load the canonicalization rules
+const rules=require(FILE_RULES) 
+
+// Load all domain filters
+const domainFiltersFiles=fs.readdirSync(FOLDER_DOMAINFILTERS)
+const domainFilters=[]
+for(const domainFilterFile of domainFiltersFiles) domainFilters.push(require(`${FOLDER_DOMAINFILTERS}/${domainFilterFile}`))
+
+// Load blocklisted domains
+let DOMAINS_DONTUSE=fs.existsSync(FILE_INPUT_NODOMAINS) ? fs.readFileSync(FILE_INPUT_NODOMAINS,'utf8').split(/[\r\n]+/g) : []
+DOMAINS_DONTUSE=[...new Set(DOMAINS_DONTUSE)].sort((a,b)=>a.localeCompare(b))
+fs.writeFileSync(FILE_INPUT_NODOMAINS,DOMAINS_DONTUSE.join('\n'), 'utf8')
 
 
-const fs=require('fs');
-const rules=require(FILE_RULES); // Load the rules from rules.js
+// Initialize files
 if(RESTART){
-	fs.writeFileSync(FILE_PATTERNS,'{}');
-	fs.writeFileSync(FILE_ANALYZE_LATER,'{}');
-	fs.writeFileSync(FILE_SEARCHRESULTS_VERIFIED_CANONICALS,'');
-	fs.writeFileSync(FILE_SEARCHRESULTS_VERIFIED_SURFACENAMES,'');
+	fs.writeFileSync(FILE_OUTPUT_PATTERNS,'{}')
+	fs.writeFileSync(FILE_OUTPUT_ANALYZE_LATER,'{}')
+	fs.writeFileSync(FILE_OUTPUT_SEARCHRESULTS_VERIFIED_CANONICALS,'')
+	fs.writeFileSync(FILE_OUTPUT_SEARCHRESULTS_VERIFIED_SURFACENAMES,'')
 }
-var verified_canonicals=fs.existsSync(FILE_SEARCHRESULTS_VERIFIED_CANONICALS) ? fs.readFileSync(FILE_SEARCHRESULTS_VERIFIED_CANONICALS,'utf8').split(/[\r\n]+/) : [];
-var verified_surfacenames=fs.existsSync(FILE_SEARCHRESULTS_VERIFIED_SURFACENAMES) ? fs.readFileSync(FILE_SEARCHRESULTS_VERIFIED_SURFACENAMES,'utf8').split(/[\r\n]+/) : [];
-var DOMAINS_DONTUSE=fs.existsSync(FILE_NODOMAINS) ? fs.readFileSync(FILE_NODOMAINS,'utf8').split(/[\r\n]+/g) : [];
-DOMAINS_DONTUSE=[...new Set(DOMAINS_DONTUSE)].sort((a, b) => a.localeCompare(b));
-fs.writeFileSync(FILE_NODOMAINS, DOMAINS_DONTUSE.join('\n'), 'utf8');
-var saveforlater=fs.existsSync(FILE_ANALYZE_LATER) ? JSON.parse(fs.readFileSync(FILE_ANALYZE_LATER,'utf8')) : {};
-var patterns=fs.existsSync(FILE_PATTERNS) ? JSON.parse(fs.readFileSync(FILE_PATTERNS,'utf8')) : {};
 
-const files=fs.readdirSync(FOLDER_SEARCHRESULTS_KEYWORD);
-for(file of files){
-	let canonical=file.replace('.json','').replace(/^_/g,'');
-	console.log(canonical);
-	let content=fs.readFileSync(`${FOLDER_SEARCHRESULTS_KEYWORD}/${file}`,'utf8');
-	content=JSON.parse(content);
-	for(result of content){
-		let domain=domainFromUrl(result.u);
-		if(!domain) continue;
-		if(DOMAINS_DONTUSE.includes(domain)) continue;
-		checkURL(domain,canonical,result.u,result.t);
+// Create the reports folder
+if(WRITE_REPORTS && !fs.existsSync(FOLDER_REPORTS)) fs.mkdirSync(FOLDER_REPORTS)
+const reportFiles=fs.readdirSync(FOLDER_REPORTS)
+for(const reportFile of reportFiles) fs.unlinkSync(`${FOLDER_REPORTS}/${reportFile}`)
+
+// Load data
+let verified_canonicals=fs.existsSync(FILE_OUTPUT_SEARCHRESULTS_VERIFIED_CANONICALS) ? fs.readFileSync(FILE_OUTPUT_SEARCHRESULTS_VERIFIED_CANONICALS,'utf8').split(/[\r\n]+/) : []
+let verified_surfacenames=fs.existsSync(FILE_OUTPUT_SEARCHRESULTS_VERIFIED_SURFACENAMES) ? fs.readFileSync(FILE_OUTPUT_SEARCHRESULTS_VERIFIED_SURFACENAMES,'utf8').split(/[\r\n]+/) : []
+
+fs.writeFileSync(FILE_OUTPUT_VERIFIED_CONFIDENCE,'{}')
+let validatedConfidence={}
+
+let saveforlater=fs.existsSync(FILE_OUTPUT_ANALYZE_LATER) ? JSON.parse(fs.readFileSync(FILE_OUTPUT_ANALYZE_LATER,'utf8')) : {}
+let patterns=fs.existsSync(FILE_OUTPUT_PATTERNS) ? JSON.parse(fs.readFileSync(FILE_OUTPUT_PATTERNS,'utf8')) : {}
+
+// Loop over folders
+const folders=fs.readdirSync(FOLDER_INPUT_SEARCHRESULTS,{withFileTypes:true}).filter(d=>d.isDirectory()).map(d=>d.name)
+for(const folder of folders){
+	// Loop over files
+	const files=fs.readdirSync(`${FOLDER_INPUT_SEARCHRESULTS}/${folder}`)
+	for(const file of files){
+		const canonical=file.replace('.json','').replace(/^_/g,'')
+		// Loop over the search resuls
+		const results=JSON.parse(fs.readFileSync(`${FOLDER_INPUT_SEARCHRESULTS}/${folder}/${file}`,'utf8'))
+		if(!validatedConfidence[canonical]) validatedConfidence[canonical]={t:results.length,c:{}}
+		for(const result of results){
+			const domain=domainFromUrl(result.u)
+			if(!domain) continue
+			// Do not process blocklisted domains
+			if(DOMAINS_DONTUSE.includes(domain)) continue
+			
+			const output=checkURL(domain,canonical,result)
+		}
+	}
+	if(!WRITEFILE_AT_EACH_ENTRY){
+		fs.appendFileSync(FILE_OUTPUT_SEARCHRESULTS_VERIFIED_CANONICALS,verified_canonicals.join('\n')+'\n')
+		fs.appendFileSync(FILE_OUTPUT_SEARCHRESULTS_VERIFIED_SURFACENAMES,verified_surfacenames.join('\n')+'\n')
+		fs.writeFileSync(FILE_OUTPUT_VERIFIED_CONFIDENCE,JSON.stringify(validatedConfidence))
 	}
 }
 
 function domainFromUrl(url){
-	if(url.match(/^\/a\/redirect/)) return;
-	let domainURL=url.replace(/^https?:\/\//,'');
-	domainURL=domainURL.split(/\//g)[0];
-	return domainURL.split('.').length==2 ? domainURL : domainURL.replace(/^[a-zA-Z0-9]+\./,'');
+	if(url.match(/^\/a\/redirect/)) return null
+	let domainURL=url.replace(/^https?:\/\//,'')
+	domainURL=domainURL.split(/\//g)[0]
+	return domainURL.split('.').length==2 ? domainURL : domainURL.replace(/^[a-zA-Z0-9]+\./,'')
+}
+
+function saveConfidence(originalcanonical,foundcanonical,domain){
+	if(!validatedConfidence[originalcanonical]) validatedConfidence[originalcanonical]={t:0,c:{}}
+	validatedConfidence[originalcanonical].t++
+	if(originalcanonical==foundcanonical){
+		if(!validatedConfidence[originalcanonical].c[domain]) validatedConfidence[originalcanonical].c[domain]=0
+		validatedConfidence[originalcanonical].c[domain]++
+	}else{
+		if(!validatedConfidence[originalcanonical].alt) validatedConfidence[originalcanonical].alt={}
+		if(!validatedConfidence[originalcanonical].alt[foundcanonical]) validatedConfidence[originalcanonical].alt[foundcanonical]=0
+		validatedConfidence[originalcanonical].alt[foundcanonical]++
+	}
+	if(WRITEFILE_AT_EACH_ENTRY) fs.writeFileSync(FILE_OUTPUT_VERIFIED_CONFIDENCE,JSON.stringify(validatedConfidence))
+}
+
+function saveSurface(surface){
+	surface=decodeURIComponent(surface)
+	if(verified_surfacenames.includes(surface)) return
+	verified_surfacenames.push(surface)
+	if(WRITEFILE_AT_EACH_ENTRY) fs.appendFileSync(FILE_OUTPUT_SEARCHRESULTS_VERIFIED_SURFACENAMES,`${surface}\n`)
 }
 
 function saveCanonical(canonical){
-	if(verified_canonicals.includes(canonical)) return;
-	verified_canonicals.push(canonical);
-	fs.appendFileSync(FILE_SEARCHRESULTS_VERIFIED_CANONICALS,`${canonical}\n`);
+	if(verified_canonicals.includes(canonical)) return
+	verified_canonicals.push(canonical)
+	if(WRITEFILE_AT_EACH_ENTRY) fs.appendFileSync(FILE_OUTPUT_SEARCHRESULTS_VERIFIED_CANONICALS,`${canonical}\n`)
 }
-function saveSurface(surface){
-	if(verified_surfacenames.includes(surface)) return;
-	fs.appendFileSync(FILE_SEARCHRESULTS_VERIFIED_SURFACENAMES,`${surface}\n`);
-	verified_surfacenames.push(surface);
-}
+
 function saveAnalyzeLater(domain,entry){
 	return;
 	if(!saveforlater[domain]) saveforlater[domain]=[];
 	if(saveforlater[domain].includes(entry)) return;
 	saveforlater[domain].push(entry);
-	fs.writeFileSync(FILE_ANALYZE_LATER,JSON.stringify(saveforlater));
+	fs.writeFileSync(FILE_OUTPUT_ANALYZE_LATER,JSON.stringify(saveforlater));
 }
 
-function checkURL(domain,canonical,url,title){
-	url=url.toUpperCase();
-	title=title.toUpperCase();
-	let urlSplit=url.split(/\//g);
-	let matches=[];
+function checkURL(domain,canonical,result){
+	result.u=result.u.toUpperCase()
+	result.t=result.t.toUpperCase()
+	let matches=[]
 	
-	let foundURL=null;
-	let foundBrand=null;
-	
-	// region TRACTORSUPPLY
-	if(domain=='tractorsupply.com'){
-		matches=url.match(/^https:\/\/www\.tractorsupply\.com\/tsc\/brand\/([^\/]+)/i);
-		if(matches && matches.length>0) saveCanonical(rules.canonicalize(matches[1]).split('CMRESHOPBYBRANDBRANDLINK')[0]);
-		return;
+	for(const domainFilter of domainFilters){
+		if(!Object.hasOwn(domainFilter,'check')) continue
+		const filterResult=domainFilter.check(domain,canonical,result,rules)
+		if(filterResult) matches.push(filterResult)
 	}
-	// endregion
-	return;
-	
-	// region INSTACART
-	if(domain=='instacart.com'){
-		matches=url.match(/^https:\/\/www\.instacart\.com\/[^\?]+\?brand=([^\/]+)/i);
-		if(matches && matches.length>0) saveCanonical(rules.canonicalize(matches[1]));
-		return;
-	}
-	// endregion
-	
-	// region FLIPKART
-	if(domain=='flipkart.com'){
-		matches=url.match(/^https:\/\/www\.flipkart\.com\/([^\/]+\/)+([^~]+)~BRAND/i);
-		if(matches && matches.length>0) saveCanonical(rules.canonicalize(matches[2]));
-		return;
-	}
-	// region OFFICEDEPOT
-	if(domain=='officedepot.com'){
-		matches=url.match(/^https:\/\/www\.officedepot\.com\/b\/([^\/]+\/)+BRAND([^\/]+)/i);
-		if(matches && matches.length>0) saveCanonical(rules.canonicalize(matches[2]));
-		return;
-	}
-	// endregion
-	
-	// region CVS
-	if(domain=='cvs.com'){
-		matches=url.match(/^https:\/\/www\.cvs\.com\/shop\/brand\-shop\/[^\/+]\/([^\/]+)/i);
-		if(matches && matches.length>0) saveCanonical(rules.canonicalize(matches[1]));
-		return;
-	}
-	// endregion
-	
-	// region 1MG
-	if(domain=='1mg.com'){
-		saveAnalyzeLater(domain,`${canonical}\t${title}\t${url}`);
-		return;
-	}
-	// endregion
-	
-	// region SEARS
-	if(domain=='sears.com'){
-		saveAnalyzeLater(domain,`${canonical}\t${title}\t${url}`);
-		return;
-	}
-	// endregion
-	
-	// region OTHERS
-	if(['macys.com','staples.com','walgreens.com','medplusmart.com','bedbathandbeyond.com'].includes(domain)){
-		saveAnalyzeLater(domain,`${canonical}\t${title}\t${url}`);
-		return;
-	}
-	// endregion
-	
-	// region CHEWY
-	if(domain=='chewy.com'){
-		matches=url.match(/^https:\/\/www\.chewy\.com\/brands\/([^\/]+)/i);
-		if(matches && matches.length>0){
-			matches[1]=matches[1].split('-');
-			matches[1].pop();
-			saveCanonical(rules.canonicalize(matches[1]));
-		}
-		return;
-	}
-	// endregion
-	
-	// region WHIZZCART
-	if(domain=='whizzcart.com'){
-		matches=url.match(/^https:\/\/www\.whizzcart\.com\/brand\/([^\/]+)\//i);
-		if(matches && matches.length>0) saveCanonical(rules.canonicalize(matches[1]));
-		return;
-	}
-	// endregion
-	
-	// region WHOLEFOODSMARKET
-	if(domain=='wholefoodsmarket.com'){
-		matches=url.match(/^https:\/\/www\.wholefoodsmarket\.com\/products\/brands\/([^\/]+)/i);
-		if(matches && matches.length>0) saveCanonical(rules.canonicalize(matches[1]));
-		return;
-	}
-	// endregion
-	
-	// region 6PM
-	if(domain=='6pm.com'){
-		matches=url.match(/^https:\/\/www\.6pm\.com\/b\/([^\/]+)\/brand/i);
-		if(matches && matches.length>0) saveCanonical(rules.canonicalize(matches[1]));
-		return;
-	}
-	// endregion
-	
-	// region RETAILMENOT
-	if(domain=='retailmenot.com'){
-		matches=url.match(/^https:\/\/www\.retailmenot\.com\/view\/([^\.]+)\./i);
-		if(matches && matches.length>0) saveCanonical(rules.canonicalize(matches[1]));
-		return;
-	}
-	// endregion
-	
-	// region ACEHARDWARE
-	if(domain=='acehardware.com'){
-		matches=url.match(/^https:\/\/www\.acehardware\.com\/brands\/([^\/]+)/i);
-		if(matches && matches.length>0) saveCanonical(rules.canonicalize(matches[1]));
-		return;
-	}
-	// endregion
-	
-	// region WAYFAIR
-	if(domain=='wayfair.com'){
-		matches=url.match(/^https:\/\/www\.wayfair\.com\/brand\/bnd\/([^\.]+)\.html/i);
-		if(matches && matches.length>0){
-			matches[1]=matches[1].split('-');
-			matches[1].pop();
-			saveCanonical(rules.canonicalize(matches[1].join('-')));
-		}else{
-			saveAnalyzeLater(domain,`${canonical}\t${title}\t${url}`);
-			return;
-		}
-		return;
-	}
-	// endregion
-	
-	// region DNB
-	if(domain=='dnb.com'){
-		matches=url.match(/^https:\/\/www\.dnb\.com\/business-directory\/company-profiles\.([^\.]+)\./i);
-		if(matches && matches.length>0) saveCanonical(rules.canonicalize(matches[1]));
-		return;
-	}
-	// endregion
-	
-	// region FINDTHISBEST
-	if(domain=='findthisbest.com'){
-		matches=url.match(/^https:\/\/www\.findthisbest\.com\/brand\/\d+-([^\/]+)$/i);
-		if(matches && matches.length>0) saveCanonical(rules.canonicalize(matches[1]));
-		return;
-	}
-	// endregion
-	
-	
-	// region ALIBABA
-	if(domain=='alibaba.com'){
-		matches=url.match(/^https:\/\/www\.alibaba\.com\/product-detail\/([^\.]+)\.html/i);
-		if(matches && matches.length>0){
-			saveAnalyzeLater(domain,`${canonical}\t${title}\t${url}`);
-			return;
-		}
-		return;
-	}
-	// endregion
-	
-	// region RADWELL
-	if(domain=='radwell.com'){
-		matches=url.match(/^https:\/\/www\.radwell\.com\/(en-us\/)?buy\/([^\/]+)/i);
-		if(matches && matches.length>0) saveCanonical(rules.canonicalize(matches[2]));
-		return;
-	}
-	// endregion
-	
-	// region GOSUPPS
-	if(domain=='gosupps.com'){
-		matches=url.match(/^https:\/\/www\.gosupps\.com\/(beauty-)?brands\/([^\.]+)\.html/i);
-		if(matches && matches.length>0) saveCanonical(rules.canonicalize(matches[2]));
-		return;
-	}
-	// endregion
-	
-	// region POSHMARK
-	if(domain=='poshmark.com'){
-		matches=url.match(/^https:\/\/(www\.)?poshmark\.(com|ca)\/brand(s?)\/([^\/]+)(\/.*)?$/i);
-		if(matches && matches.length>0) saveAnalyzeLater(domain,`${canonical}\t${matches[4]}\t${url}`);
-		else{
-			matches=url.match(/^https:\/\/(www\.)?poshmark\.(com|ca)\/listing\/([^\/]+)(\/.*)?$/i);
-			if(matches && matches.length>0){
-				if(canonical==rules.canonicalize(title.split(' | ')[0])){
-					saveSurface(title.split(' | ')[0]);
-					saveCanonical(canonical);
-				}else{
-					//console.log(canonical);
-					if(matches[3].split('-').includes(canonical)) saveCanonical(canonical);
-					else{
-						if(rules.canonicalize(matches[3]).indexOf(canonical)==0) saveCanonical(canonical);
-						//else console.log(`${canonical}\t${title}\t${url}`);
-					}
-				} //console.log(`${canonical}\t${title}\t${url}`);
+	if(matches.length>0){
+		for(const match of matches){
+			if(match.s) saveSurface(match.s)
+			if(match.c){
+				saveCanonical(match.c)
+				saveConfidence(canonical,match.c,domain)
 			}
+			console.log(`${canonical}\t${match.c}\t${domain}\t${result.u}`)
+			if(WRITE_REPORTS) fs.appendFileSync(`${FOLDER_REPORTS}/${domain}.tsv`,`${canonical}\t${match.c}\t${domain}\t${result.u}\n`)
 		}
-		return;
+		return matches
 	}
-	// endregion
-	
-	// region LOWES
-	if(domain=='lowes.com'){
-		matches=url.match(/^https:\/\/www\.lowes\.com\/b\/([^\/]+)$/i);
-		if(matches && matches.length>0){
-			saveCanonical(rules.canonicalize(matches[1]));
-		}else{
-			saveAnalyzeLater(domain,`${canonical}\t${title}\t${url}`);
-			return;
-		}
-		return;
-	}
-	// endregion
-	
-	
-	// region WALMART
-	if(domain=='walmart.com'){
-		matches=url.match(/^https:\/\/((www|business)\.)?walmart\.(com|ca)(\/(en|fr))?(\/c)?\/brand\/([^\/]+)(\/.*)?$/i);
-		if(matches && matches.length>0){
-			if(matches[7]==canonical) saveCanonical(canonical); 
-			else{
-				if(title.includes('BRAND: ')){
-					let brand=title.replace('BRAND: ','').trim();
-					brand=brand.replace(' - WALMART.COM','');
-					brand=brand.trim();
-					foundBrand=brand;
-				}else{
-					if(title.includes(' COLLECTION')){
-						let brand=title.replace(' COLLECTION','').trim();
-						brand=brand.replace(' - WALMART.COM','');
-						brand=brand.trim();
-						foundBrand=brand;
-					}else{
-						let brand=title.replace(' - WALMART.COM','').trim();
-						foundBrand=brand;
-					}
-				}
-			}
-			if(foundBrand){
-				saveSurface(foundBrand);
-				saveCanonical(rules.canonicalize(foundBrand));
-			}
-			return;
-		}else{
-			saveAnalyzeLater(domain,`${canonical}\t${title}\t${url}`);
-			return;
-		}
-		return;
-	}
-	// endregion
-	
-	// region AMAZON
-	// Not a brand
-	if(['amazon.com','amazon.co.uk','amazon.com.au','amazon.in','amazon.ae','amazon.ca','amazon.sa'].includes(domain)){
-		if(url.match(/^https:\/\/(www\.)?amazon\.(com|zh|se|nl|es|br|in|it|ca|fr|co\.uk|de|au|pl|ae|co\.jp|com\.au|com\.br|com\.mx|sa|com\.be|sg|com\.tr|cn|co\.nz|eg)(:443)?\/(-\/(es|zh)\/)?(music|prime-video)/)) return false;
-		
-		foundBrand=null;
-		matches=url.match(/^https:\/\/(www\.)?amazon\.(com|zh|se|nl|es|br|in|it|ca|fr|co\.uk|de|au|pl|ae|co\.jp|com\.au|com\.br|com\.mx|sa|com\.be|sg|com\.tr|cn|co\.nz|eg)(:443)?\/(-\/(en|es|ar|hi|fr|zh|zh_tw)\/)?(\/gp)?(stores|shop|shops)\/([^\/]+?)\/([^\/]+)(\/.*)?$/i);
-		if(matches && matches.length>0){
-			if(matches[8]==canonical) saveCanonical(canonical);
-			else{
-				if(!url.split(/\//).includes('LIST')){
-					if(title.match(/^AMAZON\.(COM\.AU|CO\.UK|COM\.MX|ES|COM|CA|CO.UK|IN|DE|CO\.JP)\s*:/)){
-						let titleSplit=title.replace(/^AMAZON\.(COM\.AU|CO\.UK|COM\.MX|ES|COM|CA|CO.UK|IN|DE|CO\.JP)/,'').trim().split(/:/);
-						brand=titleSplit[0].trim();
-						foundBrand=brand;
-					}else{
-						if(title.includes(`'S AMAZON PAGE`)){
-							let titleSplit=title.replace(`'S AMAZON PAGE`,'').trim().split(/:/);
-							brand=titleSplit[0].trim();
-							foundBrand=brand;
-						}else{
-							if(rules.canonicalize(title)==canonical) saveCanonical(canonical);
-							else{
-								if(matches[8]!='PAGE') saveCanonical(canonical);
-							}
-						}
-					}
-				}
-			}
-			if(foundBrand){
-				//console.log(`${canonical}\t${foundBrand}\t${title}\t${url}`);
-				saveSurface(foundBrand);
-				saveCanonical(rules.canonicalize(foundBrand));
-			}
-			return;
-		}
-		foundBrand=null;
-		matches=url.match(/^https:\/\/(www\.)?amazon\.(com|zh|se|nl|es|br|in|it|ca|fr|co\.uk|de|au|pl|ae|co\.jp|com\.au|com\.br|com\.mx|sa|com\.be|sg|com\.tr|cn|co\.nz|eg)(:443)?\/([^\/]+)(\/.*)?$/i);
-		if(matches && matches.length>0){
-			if(matches[4]==canonical) saveCanonical(canonical);
-			else{
-				if(!url.match(/\/S\?(K=)?/)){
-					let canonicalized=rules.canonicalize(matches[4]);
-					if(canonicalized==canonical){
-						saveSurface(matches[4]);
-						saveCanonical(canonicalized);
-					}else{
-						if(matches[4].split(/-/).includes(canonical)) saveCanonical(canonical);
-						else{
-							if(canonicalized.includes(canonical)) saveAnalyzeLater(domain,`${canonical}\t${matches[4]}\t${url}`);
-							else{
-								title=title.replace(/AMAZON\.COM\s*:\s*/g,'');
-								if(title.indexOf(canonical)==0) saveCanonical(canonical);
-								//else console.log(`${canonical}\t${title}\t${url}`);
-							}
-						} 
-					}
-				}
-			}
-			return;
-		}else{
-			saveAnalyzeLater(domain,`${canonical}\t${title}\t${url}`);
-			return;
-		}
-		return;
-	}
-	// endregion
-	
-	// region HOME DEPOT
-	if(domain=='homedepot.com'){
-		matches=url.match(/^https:\/\/www\.homedepot\.com\/b\/([^\/]+)/i);
-		if(matches && matches.length>0){
-			let title_canonical=rules.canonicalize(title.split(' - ')[0]);
-			if(canonical==title_canonical) saveCanonical(canonical);
-			else{
-				if(title.includes(' - THE HOME DEPOT')){
-					// save for later console.log(`${canonical}\t${title.split(' - ')[0]}\t${url}`);
-				}
-				
-			} 
-		}
-		return;
-	}
-	// endregion
-	
-	
-	// region TARGET
-	if(domain=='target.com'){
-		matches=url.match(/^https:\/\/www\.target\.com\/b\/([^\/]+)(\/.*)?$/i);
-		if(matches && matches.length>0){
-			if(matches[1]==canonical) saveCanonical(canonical);
-			else{
-				if(title.includes(` PRODUCTS AT TARGET`)){
-					let brand=title.replace(` PRODUCTS AT TARGET`,'').trim();
-					saveSurface(brand);
-					saveCanonical(rules.canonicalize(brand));
-				}else{
-					if(title.includes(` : TARGET`)){
-						let brand=title.replace(` : TARGET`,'').split(':');
-						saveSurface(brand[0]);
-						saveCanonical(rules.canonicalize(brand[0]));
-					}else{
-						saveCanonical(rules.canonicalize(matches[1]));
-					}
-				} 
-			}
-		}
-		return;
-	}
-	// endregion
-	
-	// region PETCO
-	if(domain=='petco.com'){
-		matches=url.match(/^https:\/\/www\.petco\.com\/shop\/en\/petcostore\/brand\/([^\/]+)/i);
-		if(matches && matches.length>0){
-			saveCanonical(rules.canonicalize(matches[1]));
-		}else{
-			matches=url.match(/^https:\/\/www\.petco\.com\/shop\/en\/petcostore\/product\/([^\/]+)/i);
-			if(matches && matches.length>0){
-				if(rules.canonicalize(matches[1]).indexOf(canonical)==0) saveCanonical(canonical);
-			}
-		} 
-		return;
-	}
-	// endregion
-	
-	
-	// region BESTBUY.COM
-	if(domain=='bestbuy.com'){
-		matches=url.match(/^http(s?):\/\/(www\.)?bestbuy\.com\/site\/brands\/([^\/]+)(\/.*)?$/i);
-		if(matches && matches.length>0) saveCanonical(rules.canonicalize(matches[3])); 
-		return;
-	}
-	
-	// region MANUALS.PLUS
-	if(domain=='manuals.plus'){
-		matches=url.match(/^http(s?):\/\/(www\.)?manuals\.plus(\/category)?\/([^\/]+)(\/.*)?$/i);
-		if(matches && matches.length>0){
-			if(matches[4]==canonical) saveCanonical(canonical);
-			else{
-				if(!['M','TAG','QA','ASIN','VIDEO'].includes(matches[4])){
-					saveSurface(matches[4]);
-					saveCanonical(rules.canonicalize(matches[4]));
-				}
-			}
-		}
-		return;
-	}
-	
-	
-	// region SELLERRATINGS.COM
-	if(domain=='sellerratings.com'){
-		matches=url.match(/^http(s?):\/\/(www\.)?sellerratings\.com\/amazon\/[a-zA-Z]+\/([^\/]+)(\/.*)?$/i);
-		if(matches && matches.length>0){
-			if(matches[3]==canonical) saveCanonical(canonical);
-			else{
-				if(title.includes(' STORE ON AMAZON.COM ')){
-					let brand=title.split(' STORE ON AMAZON.COM ');
-					brand=brand[0].trim();
-					saveSurface(brand);
-					saveCanonical(rules.canonicalize(brand));
-				}else{
-					if(title.includes(' PRODUCTS ON AMAZON.COM MARKETPLACE')){
-						let brand=title.split(' PRODUCTS ON AMAZON.COM MARKETPLACE');
-						brand=brand[0].trim();
-						saveSurface(brand);
-						saveCanonical(rules.canonicalize(brand));
-					}else{
-						if(title.includes(' ON AMAZON.COM MARKETPLACE')){
-							let brand=title.split(' ON AMAZON.COM MARKETPLACE');
-							brand=brand[0].trim();
-							saveSurface(brand);
-							saveCanonical(rules.canonicalize(brand));
-						}
-					}
-				}
-			}
-		}
-		return;
-	}
-	
-	// region CHERRYPICKSREVIEWS.COM
-	if(domain=='cherrypicksreviews.com'){
-		matches=url.match(/^http(s?):\/\/(www\.)?cherrypicksreviews\.com\/brand\/([^\/]+)(\/.*)?$/i);
-		if(matches && matches.length>0){
-			if(matches[3]==canonical) saveCanonical(canonical);
-		}
-		matches=url.match(/^http(s?):\/\/(www\.)?cherrypicksreviews\.com\/sellers\/amazon\/([^\/]+)(\/.*)?$/i);
-		if(matches && matches.length>0){
-			if(matches[3]==canonical) saveCanonical(canonical);
-		}
-		if(title.includes(' PRODUCT GUIDE: ')){
-			let brand=title.split(' PRODUCT GUIDE: ');
-			brand=brand[0].trim();
-			saveSurface(brand);
-			saveCanonical(rules.canonicalize(brand));
-		}else{
-			if(title.includes(' REVIEW 20')){
-				let brand=title.split(' REVIEW 20');
-				brand=brand[0].trim();
-				saveSurface(brand);
-				saveCanonical(rules.canonicalize(brand));
-			}
-		}
-		return;
-	}
-	// endregion
 	
 	/*
 	if(!patterns[domain]) patterns[domain]=[];
 	let replacedURL=url.replace(/^http(s?):\/\/[^\/]+\//i,'');
 	if(replacedURL.length>0 && !patterns[domain].includes(replacedURL)){
 		patterns[domain].push(replacedURL);
-		fs.writeFileSync(FILE_PATTERNS,JSON.stringify(Object.fromEntries(Object.entries(patterns).sort(([, arrA], [, arrB]) => arrB.length - arrA.length))));
+		fs.writeFileSync(FILE_OUTPUT_PATTERNS,JSON.stringify(Object.fromEntries(Object.entries(patterns).sort(([, arrA], [, arrB]) => arrB.length - arrA.length))));
 	}*/
 	return;
 }
