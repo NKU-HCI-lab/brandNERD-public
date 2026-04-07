@@ -7,11 +7,17 @@ const FOLDER_INPUT_SEARCHRESULTS=`${FOLDER_DATASETS}/02_web-search-results` // F
 const FOLDER_OUTPUT_SEARCHRESULTS_VERIFIED=`${FOLDER_DATASETS}/03_verified` // Folder containing verified brands
 const FILE_OUTPUT_SEARCHRESULTS_VERIFIED_SURFACENAMES=`${FOLDER_OUTPUT_SEARCHRESULTS_VERIFIED}/verified_surface.csv` // File with the verified surface names
 const FILE_OUTPUT_SEARCHRESULTS_VERIFIED_CANONICALS=`${FOLDER_OUTPUT_SEARCHRESULTS_VERIFIED}/verified_canonicals.csv` // File with the verified canonical names
-const FILE_OUTPUT_VERIFIED_CONFIDENCE=`${FOLDER_OUTPUT_SEARCHRESULTS_VERIFIED}/verified_confidence.json` // File with the confidence scores
+let FILE_OUTPUT_VERIFIED_CONFIDENCE=`${FOLDER_OUTPUT_SEARCHRESULTS_VERIFIED}/verified_confidence.json` // File with the confidence scores
 
-const FILE_INPUT_NODOMAINS=`../02_web-search/nodomains.tsv` // File containing the domain blocklist
+// File containing the domain blocklist
+const FILE_INPUT_NODOMAINS=`../02_web-search/nodomains.tsv`
+
+// These will deliberately be analyzed later 
 const FILE_OUTPUT_ANALYZE_LATER='./analyze_later.json';
+
+// File containing common patterns: useful for eliciting rules and blocked domains
 const FILE_OUTPUT_PATTERNS='./patterns.json';
+
 const FILE_RULES='../01_canonicalization/_lib.canonicalization-rules.js' // File containing the canonicalization rules 
 const FOLDER_DOMAINFILTERS='./domains'
 const FOLDER_REPORTS='./reports'
@@ -50,7 +56,7 @@ for(const reportFile of reportFiles) fs.unlinkSync(`${FOLDER_REPORTS}/${reportFi
 let verified_canonicals=fs.existsSync(FILE_OUTPUT_SEARCHRESULTS_VERIFIED_CANONICALS) ? fs.readFileSync(FILE_OUTPUT_SEARCHRESULTS_VERIFIED_CANONICALS,'utf8').split(/[\r\n]+/) : []
 let verified_surfacenames=fs.existsSync(FILE_OUTPUT_SEARCHRESULTS_VERIFIED_SURFACENAMES) ? fs.readFileSync(FILE_OUTPUT_SEARCHRESULTS_VERIFIED_SURFACENAMES,'utf8').split(/[\r\n]+/) : []
 
-fs.writeFileSync(FILE_OUTPUT_VERIFIED_CONFIDENCE,'{}')
+
 let validatedConfidence={}
 
 let saveforlater=fs.existsSync(FILE_OUTPUT_ANALYZE_LATER) ? JSON.parse(fs.readFileSync(FILE_OUTPUT_ANALYZE_LATER,'utf8')) : {}
@@ -59,21 +65,30 @@ let patterns=fs.existsSync(FILE_OUTPUT_PATTERNS) ? JSON.parse(fs.readFileSync(FI
 // Loop over folders
 const folders=fs.readdirSync(FOLDER_INPUT_SEARCHRESULTS,{withFileTypes:true}).filter(d=>d.isDirectory()).map(d=>d.name)
 for(const folder of folders){
+	FILE_OUTPUT_VERIFIED_CONFIDENCE=`${FOLDER_OUTPUT_SEARCHRESULTS_VERIFIED}/verified_confidence-${folder}.json` // File with the confidence scores
+	fs.writeFileSync(FILE_OUTPUT_VERIFIED_CONFIDENCE,'{}')
+	validatedConfidence={}
 	// Loop over files
+	let counter=0
 	const files=fs.readdirSync(`${FOLDER_INPUT_SEARCHRESULTS}/${folder}`)
 	for(const file of files){
+		counter++
 		const canonical=file.replace('.json','').replace(/^_/g,'')
+		process.stdout.write(`[${counter}/${files.length}] ${canonical}`)
 		// Loop over the search resuls
 		const results=JSON.parse(fs.readFileSync(`${FOLDER_INPUT_SEARCHRESULTS}/${folder}/${file}`,'utf8'))
 		if(!validatedConfidence[canonical]) validatedConfidence[canonical]={t:results.length,c:{}}
+		let found=0
 		for(const result of results){
 			const domain=domainFromUrl(result.u)
 			if(!domain) continue
 			// Do not process blocklisted domains
 			if(DOMAINS_DONTUSE.includes(domain)) continue
 			
-			const output=checkURL(domain,canonical,result)
+			let matches=checkURL(domain,canonical,result)
+			found+=matches.length
 		}
+		console.log(`${found}/${results.length}`)
 	}
 	if(!WRITEFILE_AT_EACH_ENTRY){
 		fs.appendFileSync(FILE_OUTPUT_SEARCHRESULTS_VERIFIED_CANONICALS,verified_canonicals.join('\n')+'\n')
@@ -89,16 +104,19 @@ function domainFromUrl(url){
 	return domainURL.split('.').length==2 ? domainURL : domainURL.replace(/^[a-zA-Z0-9]+\./,'')
 }
 
-function saveConfidence(originalcanonical,foundcanonical,domain){
+function saveConfidence(originalcanonical,foundcanonical,domain,url){
 	if(!validatedConfidence[originalcanonical]) validatedConfidence[originalcanonical]={t:0,c:{}}
 	validatedConfidence[originalcanonical].t++
 	if(originalcanonical==foundcanonical){
-		if(!validatedConfidence[originalcanonical].c[domain]) validatedConfidence[originalcanonical].c[domain]=0
-		validatedConfidence[originalcanonical].c[domain]++
+		if(!validatedConfidence[originalcanonical].c[domain]) validatedConfidence[originalcanonical].c[domain]=[]
+		validatedConfidence[originalcanonical].c[domain].push(url)
 	}else{
 		if(!validatedConfidence[originalcanonical].alt) validatedConfidence[originalcanonical].alt={}
-		if(!validatedConfidence[originalcanonical].alt[foundcanonical]) validatedConfidence[originalcanonical].alt[foundcanonical]=0
-		validatedConfidence[originalcanonical].alt[foundcanonical]++
+		if(!validatedConfidence[originalcanonical].alt[foundcanonical]){
+			validatedConfidence[originalcanonical].alt[foundcanonical]={}
+		}
+		if(!validatedConfidence[originalcanonical].alt[foundcanonical][domain]) validatedConfidence[originalcanonical].alt[foundcanonical][domain]=[]
+		validatedConfidence[originalcanonical].alt[foundcanonical][domain].push(url)
 	}
 	if(WRITEFILE_AT_EACH_ENTRY) fs.writeFileSync(FILE_OUTPUT_VERIFIED_CONFIDENCE,JSON.stringify(validatedConfidence))
 }
@@ -125,28 +143,29 @@ function saveAnalyzeLater(domain,entry){
 }
 
 function checkURL(domain,canonical,result){
+	const url=result.u
 	result.u=result.u.toUpperCase()
 	result.t=result.t.toUpperCase()
 	let matches=[]
-	
 	for(const domainFilter of domainFilters){
 		if(!Object.hasOwn(domainFilter,'check')) continue
 		const filterResult=domainFilter.check(domain,canonical,result,rules)
 		if(filterResult) matches.push(filterResult)
 	}
 	if(matches.length>0){
+		const writeMatches=[]
 		for(const match of matches){
 			if(match.s) saveSurface(match.s)
 			if(match.c){
 				saveCanonical(match.c)
-				saveConfidence(canonical,match.c,domain)
+				saveConfidence(canonical,match.c,domain,url)
 			}
-			console.log(`${canonical}\t${match.c}\t${domain}\t${result.u}`)
-			if(WRITE_REPORTS) fs.appendFileSync(`${FOLDER_REPORTS}/${domain}.tsv`,`${canonical}\t${match.c}\t${domain}\t${result.u}\n`)
+			//process.stdout.write(`.`)//${canonical}: ${match.c} t${domain})\t${result.u}
+			writeMatches.push(`${canonical}\t${match.c}\t${domain}\t${result.u}`)
 		}
+		if(WRITE_REPORTS) fs.appendFileSync(`${FOLDER_REPORTS}/${domain}.tsv`,writeMatches.join('\n')+'\n')
 		return matches
 	}
-	
 	/*
 	if(!patterns[domain]) patterns[domain]=[];
 	let replacedURL=url.replace(/^http(s?):\/\/[^\/]+\//i,'');
@@ -154,5 +173,5 @@ function checkURL(domain,canonical,result){
 		patterns[domain].push(replacedURL);
 		fs.writeFileSync(FILE_OUTPUT_PATTERNS,JSON.stringify(Object.fromEntries(Object.entries(patterns).sort(([, arrA], [, arrB]) => arrB.length - arrA.length))));
 	}*/
-	return;
+	return [];
 }

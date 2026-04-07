@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container wide">
+        <div class="header">
+            <h1>Admin Panel</h1>
+            <div>
+                <div class="header-dropdown" id="header-dropdown">
+                    <button class="btn-secondary header-dropdown-toggle" id="header-dropdown-toggle">Menu &#9662;</button>
+                    <div class="header-dropdown-menu">
+                        <a href="/dashboard">Dashboard</a>
+                        <div class="header-dropdown-divider"></div>
+                        <button id="signout-btn">Sign Out</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="message" class="message" hidden></div>
+        <table id="users-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="users-body">
+                <tr><td colspan="6">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        function statusLabel(status) {
+            if (status === null || status === '' || status === undefined) return '<span class="badge pending">Pending</span>';
+            if (Number(status) === 1) return '<span class="badge approved">Approved</span>';
+            if (Number(status) === -1) return '<span class="badge denied">Denied</span>';
+            return status;
+        }
+
+        function roleLabel(role) {
+            return Number(role) >= 10 ? 'Admin' : 'User';
+        }
+
+        async function loadUsers() {
+            try {
+                const res = await fetch('/api/admin/users');
+                if (res.status === 403 || res.status === 401) {
+                    window.location.href = '/signin';
+                    return;
+                }
+                const data = await res.json();
+                const tbody = document.getElementById('users-body');
+                tbody.innerHTML = '';
+
+                data.users.forEach(user => {
+                    const isApproved = Number(user.status) === 1;
+                    const isDenied = Number(user.status) === -1;
+                    const isPending = user.status === null || user.status === '' || user.status === undefined;
+                    const isAdmin = Number(user.role) >= 10;
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${user.id}</td>
+                        <td>${user.email}</td>
+                        <td>${roleLabel(user.role)}</td>
+                        <td>${statusLabel(user.status)}</td>
+                        <td>${user.created_at}</td>
+                        <td>
+                            ${!isApproved ? `<button class="btn-approve" onclick="setStatus(${user.id}, 1)">Approve</button>` : ''}
+                            ${!isDenied ? `<button class="btn-deny" onclick="setStatus(${user.id}, -1)">Deny</button>` : ''}
+                            ${!isAdmin ? `<button class="btn-approve" onclick="setRole(${user.id}, 10)">Make Admin</button>` : ''}
+                            ${isAdmin ? `<button class="btn-deny" onclick="setRole(${user.id}, 0)">Revoke Admin</button>` : ''}
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (err) {
+                document.getElementById('users-body').innerHTML = '<tr><td colspan="6">Error loading users.</td></tr>';
+            }
+        }
+
+        async function setStatus(userId, status) {
+            const msg = document.getElementById('message');
+            try {
+                const res = await fetch('/api/admin/users/approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, status }),
+                });
+                const data = await res.json();
+                msg.textContent = data.message || data.error;
+                msg.className = res.ok ? 'message success' : 'message error';
+                msg.hidden = false;
+                loadUsers();
+            } catch (err) {
+                msg.textContent = 'Error updating user.';
+                msg.className = 'message error';
+                msg.hidden = false;
+            }
+        }
+
+        async function setRole(userId, role) {
+            const msg = document.getElementById('message');
+            try {
+                const res = await fetch('/api/admin/users/role', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, role }),
+                });
+                const data = await res.json();
+                msg.textContent = data.message || data.error;
+                msg.className = res.ok ? 'message success' : 'message error';
+                msg.hidden = false;
+                loadUsers();
+            } catch (err) {
+                msg.textContent = 'Error updating user role.';
+                msg.className = 'message error';
+                msg.hidden = false;
+            }
+        }
+
+        // Header dropdown toggle
+        document.getElementById('header-dropdown-toggle').addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.getElementById('header-dropdown').classList.toggle('open');
+        });
+        document.addEventListener('click', () => {
+            document.getElementById('header-dropdown').classList.remove('open');
+        });
+
+        document.getElementById('signout-btn').addEventListener('click', async () => {
+            await fetch('/auth/signout', { method: 'POST' });
+            window.location.href = '/signin';
+        });
+
+        loadUsers();
+    </script>
+</body>
+</html>

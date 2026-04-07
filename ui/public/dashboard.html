@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        body { align-items: flex-start; justify-content: stretch; padding: 2rem 1rem; }
+        .dashboard-container {
+            background: #fff; padding: 2rem; border-radius: 8px;
+            width: 100%; max-width: 900px; margin: 0 auto;
+        }
+        .dashboard-links { display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
+        .dashboard-links a { margin-top: 0; }
+
+        .summary-row {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 0.75rem;
+        }
+        .summary-row:first-child { margin-top: 1.25rem; }
+        .summary-card {
+            flex: 1;
+            min-width: 0;
+            border-left: 4px solid #4a90d9;
+            background: #f9fbfd;
+            border-radius: 4px;
+            padding: 0.75rem 1rem;
+            display: flex;
+            flex-direction: column;
+        }
+        .summary-card.color-canonical { border-left-color: #28a745; background: #f6faf7; }
+        .summary-card.color-resolved  { border-left-color: #e67e22; background: #fdf8f3; }
+        .summary-card-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 0.35rem;
+        }
+        .summary-card-header h3 {
+            font-size: 0.85rem; font-weight: 600; margin: 0;
+            color: #555;
+        }
+        .summary-card .stat-main {
+            font-size: 1.35rem; font-weight: 700; color: #222;
+            font-variant-numeric: tabular-nums;
+        }
+        .summary-card .stat-detail {
+            font-size: 0.8rem; color: #777; margin-top: 0.2rem;
+            font-variant-numeric: tabular-nums;
+        }
+        .btn-download {
+            background: none; border: 1px solid #ccc; border-radius: 3px;
+            padding: 0.15rem 0.4rem; font-size: 0.75rem; cursor: pointer;
+            color: #555; line-height: 1;
+        }
+        .btn-download:hover { background: #eee; border-color: #aaa; }
+
+        #user-info p { margin-bottom: 0.5rem; }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="header">
+            <h1>Dashboard</h1>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <span id="sync-status" style="font-size: 0.9rem; opacity: 0.8;"></span>
+                <span id="active-users" style="font-size: 0.9rem; opacity: 0.8;"></span>
+                <div class="header-dropdown" id="header-dropdown">
+                    <button class="btn-secondary header-dropdown-toggle" id="header-dropdown-toggle">Menu &#9662;</button>
+                    <div class="header-dropdown-menu">
+                        <button id="signout-btn">Sign Out</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="user-info">Loading...</div>
+        <div class="dashboard-links">
+            <a href="/canonicals_index" class="btn-primary" style="width:auto;text-decoration:none;text-align:center;">Canonicals Index</a>
+            <span id="admin-link" hidden><a href="/admin" class="btn-secondary" style="text-decoration:none;">Admin Panel</a></span>
+        </div>
+
+        <h2 style="font-size:1.1rem; margin-top:2rem; margin-bottom:0;">Dataset Summary</h2>
+        <div id="summary-container">
+            <div class="summary-row"><div class="summary-card"><div class="summary-card-header"><h3>Loading...</h3></div></div></div>
+        </div>
+    </div>
+
+    <script>
+        async function load() {
+            try {
+                const res = await fetch('/api/me');
+                if (!res.ok) {
+                    await fetch('/auth/signout', { method: 'POST' });
+                    window.location.href = '/signin';
+                    return;
+                }
+                const data = await res.json();
+                const user = data.user;
+
+                document.getElementById('user-info').innerHTML = `
+                    <p><strong>Email:</strong> ${user.email}</p>
+                    <p><strong>Role:</strong> ${user.role >= 10 ? 'Administrator' : 'User'}</p>
+                    <p><strong>Member since:</strong> ${user.created_at}</p>
+                `;
+
+                if (user.role >= 10) {
+                    document.getElementById('admin-link').hidden = false;
+                }
+            } catch (err) {
+                document.getElementById('user-info').textContent = 'Error loading user info.';
+            }
+        }
+
+        function fmt(n) { return Number(n).toLocaleString(); }
+
+        function cardHtml(c) {
+            const dlBtn = c.dataset
+                ? `<button class="btn-download" data-dataset="${c.dataset}" title="Download TSV">&#8615;</button>`
+                : '';
+            return `<div class="summary-card ${c.cls || ''}">
+                <div class="summary-card-header">
+                    <h3>${c.label}</h3>${dlBtn}
+                </div>
+                <div class="stat-main">${c.main}</div>
+                <div class="stat-detail">${c.detail}</div>
+            </div>`;
+        }
+
+        async function loadSummary() {
+            const container = document.getElementById('summary-container');
+            try {
+                const res = await fetch('/api/brands/summary');
+                if (!res.ok) { container.innerHTML = '<p style="color:#c00;">Failed to load summary.</p>'; return; }
+                const d = await res.json();
+
+                const rows = [
+                    [
+                        { label: 'Original', main: fmt(d.original), detail: 'surface-form rows', dataset: 'original' },
+                        { label: 'Canonicals', main: fmt(d.canonicals.total), detail: `${fmt(d.canonicals.added)} user-added`, cls: 'color-canonical', dataset: 'canonicals' },
+                    ],
+                    [
+                        { label: 'Web Search', main: fmt(d.search_queries.searched), detail: `${fmt(d.search_queries.queries)} search queries`, dataset: 'search_queries' },
+                        { label: 'Verified', main: fmt(d.verified.total), detail: `${fmt(d.verified.yes)} yes / ${fmt(d.verified.no)} no`, dataset: 'verified' },
+                        { label: 'Validated', main: fmt(d.validated.total), detail: `${fmt(d.validated.yes)} valid / ${fmt(d.validated.no)} invalid`, dataset: 'validated' },
+                    ],
+                    [
+                        { label: 'Similar', main: fmt(d.similar), detail: 'scored pairs', dataset: 'similar' },
+                        { label: 'Aggregated', main: fmt(d.aggregated), detail: 'distinct members', dataset: 'aggregated' },
+                    ],
+                    [
+                        { label: 'Resolved', main: fmt(d.resolved), detail: 'distinct sources', cls: 'color-resolved', dataset: 'resolved' },
+                    ],
+                ];
+
+                container.innerHTML = rows.map(row =>
+                    `<div class="summary-row">${row.map(cardHtml).join('')}</div>`
+                ).join('');
+
+                // Download handlers
+                container.querySelectorAll('.btn-download').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const dataset = btn.dataset.dataset;
+                        btn.disabled = true;
+                        btn.textContent = '...';
+                        try {
+                            const res = await fetch('/api/brands/export/' + dataset);
+                            if (!res.ok) { alert('Export failed.'); return; }
+                            const blob = await res.blob();
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = dataset + '.tsv';
+                            a.click();
+                            URL.revokeObjectURL(url);
+                        } catch (err) {
+                            alert('Export failed.');
+                        } finally {
+                            btn.disabled = false;
+                            btn.innerHTML = '&#8615;';
+                        }
+                    });
+                });
+            } catch (err) {
+                container.innerHTML = '<p style="color:#c00;">Error loading summary.</p>';
+            }
+        }
+
+        // Header dropdown toggle
+        document.getElementById('header-dropdown-toggle').addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.getElementById('header-dropdown').classList.toggle('open');
+        });
+        document.addEventListener('click', () => {
+            document.getElementById('header-dropdown').classList.remove('open');
+        });
+
+        document.getElementById('signout-btn').addEventListener('click', async () => {
+            await fetch('/auth/signout', { method: 'POST' });
+            window.location.href = '/signin';
+        });
+
+        async function sendHeartbeat() {
+            try {
+                await fetch('/api/activity', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ page: 'dashboard' }),
+                });
+            } catch (err) { /* ignore */ }
+        }
+
+        async function updateActiveUsers() {
+            try {
+                const res = await fetch('/api/active-users');
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('active-users').textContent = `Active users: ${data.count}`;
+                }
+            } catch (err) { /* ignore */ }
+        }
+
+        let syncTriggered = false;
+        async function triggerSync() {
+            const el = document.getElementById('sync-status');
+            el.textContent = 'DB: syncing...';
+            try {
+                const res = await fetch('/api/brands/sync', { method: 'POST' });
+                if (res.ok) { updateSyncStatus(); } else { el.textContent = 'DB: sync failed'; }
+            } catch (err) { el.textContent = 'DB: sync failed'; }
+        }
+
+        async function updateSyncStatus() {
+            try {
+                const res = await fetch('/api/brands/sync-status');
+                const el = document.getElementById('sync-status');
+                if (!res.ok) { el.textContent = ''; return; }
+                const data = await res.json();
+                if (data.localState && data.localState.synced_at) {
+                    const ago = Date.now() - new Date(data.localState.synced_at).getTime();
+                    const mins = Math.floor(ago / 60000);
+                    let label;
+                    if (mins < 1) label = 'just now';
+                    else if (mins < 60) label = mins + 'm ago';
+                    else label = Math.floor(mins / 60) + 'h ago';
+                    el.textContent = 'DB synced: ' + label;
+                } else if (!syncTriggered) {
+                    syncTriggered = true;
+                    triggerSync();
+                } else {
+                    el.textContent = 'DB: not synced';
+                }
+            } catch (err) { /* ignore */ }
+        }
+
+        // Initial load
+        sendHeartbeat();
+        updateActiveUsers();
+        updateSyncStatus();
+        load();
+        loadSummary();
+
+        // Poll every 30 seconds
+        setInterval(() => {
+            sendHeartbeat();
+            updateActiveUsers();
+            updateSyncStatus();
+        }, 30000);
+    </script>
+</body>
+</html>

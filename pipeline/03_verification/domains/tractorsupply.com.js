@@ -9,7 +9,7 @@ function check(domain,canonical,searchresult,rules){
 	}
 	return result
 }
-module.exports={}
+module.exports={check}
 
 /*
 ORIGINAL

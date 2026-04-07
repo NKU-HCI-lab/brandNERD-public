@@ -1,0 +1,287 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f5f5f5;
+    color: #333;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.container {
+    background: #fff;
+    padding: 2rem;
+    border-radius: 8px;
+    width: 100%;
+    max-width: 420px;
+}
+
+.container.wide {
+    max-width: 800px;
+}
+
+.container-fluid {
+    background: #fff;
+    padding: 2rem;
+    border-radius: 8px;
+    width: 100%;
+    max-width: none;
+}
+
+h1 {
+    margin-bottom: 1.5rem;
+    font-size: 1.5rem;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.header h1 {
+    margin-bottom: 0;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+input[type="email"],
+input[type="password"] {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+input:focus {
+    outline: none;
+    border-color: #4a90d9;
+    box-shadow: 0 0 0 2px rgba(74, 144, 217, 0.2);
+}
+
+button[type="submit"],
+.btn-primary {
+    width: 100%;
+    padding: 0.6rem;
+    background: #4a90d9;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 1rem;
+    cursor: pointer;
+    margin-top: 0.5rem;
+}
+
+button[type="submit"]:hover,
+.btn-primary:hover {
+    background: #357abd;
+}
+
+.btn-secondary {
+    padding: 0.4rem 0.8rem;
+    background: #e0e0e0;
+    color: #333;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.btn-secondary:hover {
+    background: #ccc;
+}
+
+.btn-link {
+    display: inline-block;
+    margin-top: 1rem;
+    color: #4a90d9;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.btn-link:hover {
+    text-decoration: underline;
+}
+
+.message {
+    padding: 0.6rem 0.8rem;
+    border-radius: 4px;
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+}
+
+.message.error {
+    background: #fdecea;
+    color: #b71c1c;
+    border: 1px solid #f5c6cb;
+}
+
+.message.success {
+    background: #e8f5e9;
+    color: #1b5e20;
+    border: 1px solid #c8e6c9;
+}
+
+.link {
+    text-align: center;
+    margin-top: 1rem;
+    font-size: 0.9rem;
+}
+
+.link a {
+    color: #4a90d9;
+    text-decoration: none;
+}
+
+.link a:hover {
+    text-decoration: underline;
+}
+
+/* Admin table */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+th, td {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #eee;
+}
+
+th {
+    background: #f9f9f9;
+    font-weight: 600;
+}
+
+.badge {
+    padding: 0.15rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.badge.pending {
+    background: #fff3e0;
+    color: #e65100;
+}
+
+.badge.approved {
+    background: #e8f5e9;
+    color: #1b5e20;
+}
+
+.badge.denied {
+    background: #fdecea;
+    color: #b71c1c;
+}
+
+.btn-approve {
+    padding: 0.25rem 0.6rem;
+    background: #4caf50;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    margin-right: 0.25rem;
+}
+
+.btn-approve:hover {
+    background: #388e3c;
+}
+
+.btn-deny {
+    padding: 0.25rem 0.6rem;
+    background: #f44336;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+.btn-deny:hover {
+    background: #c62828;
+}
+
+#user-info p {
+    margin-bottom: 0.5rem;
+}
+
+/* Header dropdown menu */
+.header-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.header-dropdown-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.header-dropdown-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    z-index: 1000;
+    min-width: 160px;
+    padding: 0.25rem 0;
+}
+
+.header-dropdown.open .header-dropdown-menu {
+    display: block;
+}
+
+.header-dropdown-menu a,
+.header-dropdown-menu button {
+    display: block;
+    width: 100%;
+    padding: 0.45rem 1rem;
+    text-align: left;
+    text-decoration: none;
+    color: #333;
+    background: none;
+    border: none;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.header-dropdown-menu a:hover,
+.header-dropdown-menu button:hover {
+    background: #f0f0f0;
+}
+
+.header-dropdown-divider {
+    height: 1px;
+    background: #e0e0e0;
+    margin: 0.25rem 0;
+}

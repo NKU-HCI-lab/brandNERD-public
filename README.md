@@ -1,12 +1,8 @@
 # BrandNERD
 
-**BrandNERD** is an extensive [brand dataset](#brand-dataset) and [analysis pipeline](#analysis-pipeline) for [Named Entity Resolution](#named-entity-resolution)
+**BrandNERD** is an extensive [brand dataset](#brand-dataset) and [processing pipeline](#processing-pipeline) for [Named Entity Recognition](#named-entity-recognition)
 
-
-
-# Named entity resolution
-
-## Named Entity Resolution
+## Named Entity Recognition
 
 Named Entity Resolution (NER) in **BrandNERD** is the process of identifying different textual representations of the same brand and consolidating them into a single canonical entity. In practice, brand names appear in many surface forms due to punctuation differences, spelling variations, formatting changes, or additional descriptive text. The goal of the pipeline is therefore to detect these variations, determine whether they correspond to real brands, and map them to a unified canonical identifier that represents the underlying entity. 
 
@@ -464,9 +460,9 @@ AWP							ADVANCEDWORKPRODUCTS
 
 
 
-# Analysis pipeline
+# Processing pipeline
 
-Our **analysis pipeline** includes several steps for resolving brands. The pipeline and its scripts are continuously updated.
+Our **processing pipeline** includes several steps for resolving brands. The pipeline and its scripts are continuously updated.
 
 ### 01_canonicalization
 

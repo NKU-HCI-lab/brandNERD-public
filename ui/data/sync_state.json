@@ -1,0 +1,51 @@
+{
+  "synced_at": "2026-04-07T11:41:40.369Z",
+  "file_size": 95551488,
+  "file_mtime": 1775562076,
+  "tables": {
+    "00_original": {
+      "count": 394119,
+      "max_rowid": 394119
+    },
+    "01_canonicals": {
+      "count": 374444,
+      "max_rowid": 374444
+    },
+    "02_search_queries": {
+      "count": 1,
+      "max_rowid": 1
+    },
+    "02_canonical_searched": {
+      "count": 366632,
+      "max_rowid": 366632
+    },
+    "03_verified_domains": {
+      "count": 33,
+      "max_rowid": 33
+    },
+    "03_verified": {
+      "count": 108049,
+      "max_rowid": 108049
+    },
+    "03_alternative": {
+      "count": 16442,
+      "max_rowid": 16442
+    },
+    "04_validated": {
+      "count": 16,
+      "max_rowid": 21
+    },
+    "05_similarity_scores": {
+      "count": 773536,
+      "max_rowid": 773536
+    },
+    "06_aggregated": {
+      "count": 41,
+      "max_rowid": 41
+    },
+    "07_resolved_brands": {
+      "count": 41,
+      "max_rowid": 41
+    }
+  }
+}

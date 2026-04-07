@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canonicals Index</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        body { align-items: flex-start; justify-content: stretch; padding: 0; }
+        .toolbar { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+        .toolbar input[type="text"] {
+            flex: 1; min-width: 200px; padding: 0.45rem 0.75rem;
+            border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem;
+        }
+        .toolbar input[type="text"]:focus { outline: none; border-color: #4a90d9; box-shadow: 0 0 0 2px rgba(74,144,217,0.2); }
+        .toolbar button { padding: 0.45rem 1rem; font-size: 0.9rem; width: auto; margin-top: 0; }
+        th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+        th.sortable:hover { background: #eef; }
+        .sort-arrow { font-size: 0.7rem; margin-left: 0.25rem; opacity: 0.4; }
+        th.sortable.active .sort-arrow { opacity: 1; }
+        td.name-col { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        td.num { text-align: right; font-variant-numeric: tabular-nums; }
+        th.num { text-align: right; }
+        .pagination { display: flex; gap: 0.5rem; align-items: center; margin-top: 1rem; flex-wrap: wrap; }
+        .pagination button { padding: 0.35rem 0.75rem; font-size: 0.85rem; width: auto; margin-top: 0; }
+        .pagination select { padding: 0.35rem; font-size: 0.85rem; border: 1px solid #ccc; border-radius: 4px; }
+        .pagination .page-info { font-size: 0.85rem; opacity: 0.8; }
+        .resolved-badge { font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
+        .nav-links { margin-bottom: 1rem; }
+        .nav-links a { margin-right: 0.75rem; }
+
+        /* Layout for side panel */
+        .canonicals-layout { display: flex; gap: 1.5rem; padding: 2rem 1rem; width: 100%; }
+        .canonicals-layout #table-panel { flex: 1; min-width: 0; background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 15px; }
+        .detail-panel {
+            display: none; flex-shrink: 0; width: 520px;
+            background: #fff; border: 1px solid #ddd; border-radius: 8px;
+            padding: 1.25rem; overflow-y: auto;
+        }
+        .detail-panel .detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .detail-panel .detail-header h2 { margin: 0; font-size: 1.1rem; }
+        .detail-panel .close-btn { background: none; border: none; font-size: 1.4rem; cursor: pointer; padding: 0 0.25rem; line-height: 1; }
+        .detail-panel .close-btn:hover { color: #c00; }
+
+        .detail-section { margin-bottom: 1.25rem; }
+        .detail-section h3 { font-size: 0.95rem; margin: 0 0 0.5rem; border-bottom: 1px solid #eee; padding-bottom: 0.25rem; }
+        .detail-section ul { margin: 0; padding-left: 1.25rem; font-size: 0.85rem; }
+        .detail-section li { margin-bottom: 0.2rem; }
+        .detail-section p { font-size: 0.85rem; margin: 0.25rem 0; }
+        .detail-section table { width: 100%; font-size: 0.82rem; border-collapse: collapse; }
+        .detail-section table th, .detail-section table td { padding: 0.2rem 0.4rem; border-bottom: 1px solid #f0f0f0; text-align: left; }
+        .detail-section table th { font-weight: 600; }
+
+        .input-group { display: flex; gap: 0.4rem; }
+        .input-group input { flex: 1; padding: 0.35rem 0.6rem; font-size: 0.85rem; border: 1px solid #ccc; border-radius: 4px; }
+        .input-group button { padding: 0.35rem 0.75rem; font-size: 0.85rem; width: auto; margin-top: 0; }
+
+        #table-body tr { cursor: pointer; }
+        #table-body tr:hover { background: #f5f7fa; }
+        tr.selected:hover { background: #e8f0fe; }
+
+        .btn-outline-success {
+            padding: 0.3rem 0.75rem; font-size: 0.85rem; border: 1px solid #28a745;
+            background: #fff; color: #28a745; border-radius: 4px; cursor: pointer;
+        }
+        .btn-outline-success:hover { background: #28a745; color: #fff; }
+        .btn-outline-danger {
+            padding: 0.3rem 0.75rem; font-size: 0.85rem; border: 1px solid #dc3545;
+            background: #fff; color: #dc3545; border-radius: 4px; cursor: pointer;
+        }
+        .btn-outline-danger:hover { background: #dc3545; color: #fff; }
+
+        tr.selected { background: #e8f0fe; }
+
+        .autocomplete-wrap { position: relative; }
+        .autocomplete-list {
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: #fff; border: 1px solid #ccc; border-top: none;
+            border-radius: 0 0 4px 4px; z-index: 100;
+            max-height: 200px; overflow-y: auto; display: none;
+        }
+        .autocomplete-item {
+            padding: 0.35rem 0.6rem; font-size: 0.85rem; cursor: pointer;
+        }
+        .autocomplete-item:hover { background: #e8f0fe; }
+
+        .canonical-link { color: #4a90d9; cursor: pointer; text-decoration: none; }
+        .canonical-link:hover { text-decoration: underline; }
+
+        @media (min-width: 992px) {
+            .canonicals-layout.has-detail #table-panel { flex: 1; min-width: 0; }
+            .canonicals-layout.has-detail .detail-panel { display: block; position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; }
+        }
+        @media (max-width: 991px) {
+            .canonicals-layout { padding: 1rem 0.5rem; }
+            .detail-panel { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="canonicals-layout" id="canonicals-layout">
+        <div id="table-panel">
+                <div class="header">
+                    <h1>Canonicals</h1>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <span id="sync-status" style="font-size: 0.9rem; opacity: 0.8;"></span>
+                        <button id="sync-btn" class="btn-secondary">Sync</button>
+                        <span id="active-users" style="font-size: 0.9rem; opacity: 0.8;"></span>
+                        <div class="header-dropdown" id="header-dropdown">
+                            <button class="btn-secondary header-dropdown-toggle" id="header-dropdown-toggle">Menu &#9662;</button>
+                            <div class="header-dropdown-menu">
+                                <a href="/dashboard">Dashboard</a>
+                                <div class="header-dropdown-divider"></div>
+                                <button id="signout-btn">Sign Out</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="toolbar">
+                    <input type="text" id="search-input" placeholder="Search by name...">
+                    <button id="search-btn" class="btn-primary">Search</button>
+                    <button id="clear-btn" class="btn-secondary">Clear</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="sortable num" data-col="id">ID <span class="sort-arrow">&#9650;</span></th>
+                            <th class="sortable" data-col="name">Name <span class="sort-arrow">&#9650;</span></th>
+                            <th class="sortable num" data-col="searched">Searched <span class="sort-arrow">&#9650;</span></th>
+                            <th class="sortable num" data-col="verified">Verified <span class="sort-arrow">&#9650;</span></th>
+                            <th class="sortable num" data-col="validated">Validated <span class="sort-arrow">&#9650;</span></th>
+                            <th class="sortable num" data-col="similar">Similar <span class="sort-arrow">&#9650;</span></th>
+                            <th class="sortable num" data-col="clusters">Clusters <span class="sort-arrow">&#9650;</span></th>
+                            <th class="sortable num" data-col="added">Added <span class="sort-arrow">&#9650;</span></th>
+                            <th class="sortable" data-col="resolved">Resolved <span class="sort-arrow">&#9650;</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                        <tr><td colspan="8">Loading...</td></tr>
+                    </tbody>
+                </table>
+                <div class="pagination">
+                    <button id="first-btn" class="btn-secondary" disabled>First</button>
+                    <button id="prev-btn" class="btn-secondary" disabled>Prev</button>
+                    <span class="page-info" id="page-info"></span>
+                    <button id="next-btn" class="btn-secondary" disabled>Next</button>
+                    <button id="last-btn" class="btn-secondary" disabled>Last</button>
+                    <select id="per-page">
+                        <option value="25">25 per page</option>
+                        <option value="50">50 per page</option>
+                        <option value="100">100 per page</option>
+                    </select>
+                </div>
+        </div>
+        <div class="detail-panel" id="detail-panel">
+            <div class="detail-header">
+                <h2 id="detail-title">Detail</h2>
+                <button class="close-btn" id="close-detail">&times;</button>
+            </div>
+            <div id="detail-content"></div>
+        </div>
+    </div>
+
+    <script>
+        let state = { page: 1, perPage: 25, sort: 'id', order: 'asc', search: '' };
+        let selectedCanonicalId = null;
+        let currentUser = null;
+        async function ensureCurrentUser() {
+            if (currentUser) return currentUser;
+            try {
+                const res = await fetch('/api/me');
+                if (res.ok) { currentUser = (await res.json()).user; }
+            } catch (err) { /* ignore */ }
+            return currentUser;
+        }
+        ensureCurrentUser();
+
+        function resolvedLabel(val) {
+            if (val === 'from') return '<span class="resolved-badge">R&rarr;</span>';
+            if (val === 'to') return '<span class="resolved-badge">&rarr;R</span>';
+            if (val === 'both') return '<span class="resolved-badge">R&harr;R</span>';
+            return '';
+        }
+
+        function escapeHtml(s) {
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        async function loadData() {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '<tr><td colspan="7">Loading...</td></tr>';
+            try {
+                const params = new URLSearchParams({
+                    page: state.page,
+                    per_page: state.perPage,
+                    sort: state.sort,
+                    order: state.order,
+                });
+                if (state.search) params.set('search', state.search);
+
+                const res = await fetch('/api/canonicals?' + params);
+                if (res.status === 401) { window.location.href = '/signin'; return; }
+                if (!res.ok) throw new Error('Failed to load');
+                const data = await res.json();
+
+                tbody.innerHTML = '';
+                if (data.rows.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7">No results found.</td></tr>';
+                } else {
+                    for (const row of data.rows) {
+                        const tr = document.createElement('tr');
+                        tr.dataset.id = row.id;
+                        if (row.id === selectedCanonicalId) tr.classList.add('selected');
+                        tr.innerHTML = `
+                            <td class="num">${row.id}</td>
+                            <td class="name-col" title="${escapeHtml(row.name)}">${escapeHtml(row.name)}</td>
+                            <td class="num">${row.searched}</td>
+                            <td class="num">${row.verified}</td>
+                            <td class="num">${row.validated}</td>
+                            <td class="num">${row.similar}</td>
+                            <td class="num">${row.clusters}</td>
+                            <td class="num">${row.added}</td>
+                            <td>${resolvedLabel(row.resolved)}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    }
+                }
+
+                // Update pagination
+                const info = document.getElementById('page-info');
+                const start = (data.page - 1) * data.per_page + 1;
+                const end = Math.min(data.page * data.per_page, data.total);
+                info.textContent = `${start}-${end} of ${data.total.toLocaleString()} (page ${data.page}/${data.pages})`;
+
+                document.getElementById('first-btn').disabled = data.page <= 1;
+                document.getElementById('prev-btn').disabled = data.page <= 1;
+                document.getElementById('next-btn').disabled = data.page >= data.pages;
+                document.getElementById('last-btn').disabled = data.page >= data.pages;
+                state.pages = data.pages;
+
+                // Update sort arrows
+                document.querySelectorAll('th.sortable').forEach(th => {
+                    const arrow = th.querySelector('.sort-arrow');
+                    if (th.dataset.col === state.sort) {
+                        th.classList.add('active');
+                        arrow.innerHTML = state.order === 'asc' ? '&#9650;' : '&#9660;';
+                    } else {
+                        th.classList.remove('active');
+                        arrow.innerHTML = '&#9650;';
+                    }
+                });
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="7">Error loading data.</td></tr>';
+            }
+        }
+
+        // Row click handler (delegated)
+        document.getElementById('table-body').addEventListener('click', (e) => {
+            const tr = e.target.closest('tr[data-id]');
+            if (!tr) return;
+            const id = parseInt(tr.dataset.id);
+            if (window.innerWidth < 992) {
+                window.location.href = '/canonical_detail?id=' + id;
+            } else {
+                openDetailPanel(id);
+            }
+        });
+
+        async function openDetailPanel(id) {
+            selectedCanonicalId = id;
+            const layout = document.getElementById('canonicals-layout');
+            const panel = document.getElementById('detail-panel');
+            const content = document.getElementById('detail-content');
+            const title = document.getElementById('detail-title');
+
+            layout.classList.add('has-detail');
+            content.innerHTML = '<p>Loading...</p>';
+            title.textContent = 'Detail';
+
+            // Highlight selected row
+            document.querySelectorAll('#table-body tr').forEach(tr => {
+                tr.classList.toggle('selected', parseInt(tr.dataset.id) === id);
+            });
+
+            try {
+                const res = await fetch('/api/canonicals/' + id);
+                if (res.status === 401) { window.location.href = '/signin'; return; }
+                if (!res.ok) throw new Error('Failed to load detail');
+                const data = await res.json();
+                title.textContent = data.canonical.name;
+                renderDetail(data, content, id);
+            } catch (err) {
+                content.innerHTML = '<p style="color:#c00;">Error loading detail.</p>';
+            }
+        }
+
+        function clink(name, id) {
+            return `<a class="canonical-link" data-id="${id}">${escapeHtml(name)}</a> <small>(#${id})</small>`;
+        }
+
+        function renderDetail(data, container, id) {
+            let html = '';
+
+            // History toggle button
+            html += `<button class="btn-secondary" id="history-toggle-btn" style="margin-bottom:1rem;">Show history</button>`;
+
+            // Start regular view wrapper
+            html += `<div id="detail-regular-view">`;
+
+            // 1. ID
+            html += `<div class="detail-section">
+                <p style="font-size:0.85rem; margin:0;"><strong>ID:</strong> ${data.canonical.ID}</p>
+            </div>`;
+
+            // 2. Surface names
+            html += `<div class="detail-section">
+                <h3>Surface Names (${data.surface_names.count})</h3>`;
+            if (data.surface_names.names.length > 0) {
+                html += '<table><thead><tr><th>Name</th></tr></thead><tbody>';
+                for (const name of data.surface_names.names) {
+                    html += `<tr><td>${escapeHtml(name)}</td></tr>`;
+                }
+                html += '</tbody></table>';
+            } else {
+                html += '<p>None</p>';
+            }
+            html += '</div>';
+
+            // 4. Search results
+            html += `<div class="detail-section">
+                <h3>Search Results (${data.search_results.length})</h3>`;
+            if (data.search_results.length > 0) {
+                html += '<table><thead><tr><th>Query</th><th style="text-align:right">Results</th></tr></thead><tbody>';
+                for (const sr of data.search_results) {
+                    html += `<tr><td>${escapeHtml(sr.query_name)}</td><td style="text-align:right">${sr.count_results}</td></tr>`;
+                }
+                html += '</tbody></table>';
+            } else {
+                html += '<p>None</p>';
+            }
+            html += `<div class="input-group" style="margin-top:0.5rem;">
+                    <input type="text" id="google-query" value="${escapeHtml(data.canonical.name)}">
+                    <button class="btn-primary" id="google-btn">Google</button>
+                </div>`;
+            html += '</div>';
+
+            // 5. Verified
+            const verifiedTotal = data.verified.reduce((s, v) => s + v.count_verified, 0);
+            html += `<div class="detail-section">
+                <h3>Verified (${verifiedTotal})</h3>`;
+            if (data.verified.length > 0) {
+                html += '<table><thead><tr><th>Domain</th><th style="text-align:right">Count</th><th></th></tr></thead><tbody>';
+                for (const v of data.verified) {
+                    const gUrl = `https://www.google.com/search?q=${encodeURIComponent(data.canonical.name + ' ' + v.domain)}`;
+                    html += `<tr><td>${escapeHtml(v.domain)}</td><td style="text-align:right">${v.count_verified}</td><td style="text-align:center"><a href="${gUrl}" target="_blank" rel="noopener" title="Search Google" style="font-size:0.75rem;padding:0.1rem 0.35rem;" class="btn-secondary">&#x1F50D;</a></td></tr>`;
+                }
+                html += '</tbody></table>';
+            } else {
+                html += '<p>None</p>';
+            }
+            html += '</div>';
+
+            // 6. Validation
+            html += `<div class="detail-section">
+                <h3>Validation</h3>`;
+            if (data.validation.length > 0) {
+                html += '<table><thead><tr><th>Status</th><th style="text-align:right">Count</th></tr></thead><tbody>';
+                for (const v of data.validation) {
+                    const label = v.is_validated === 1 ? 'Valid' : v.is_validated === -1 ? 'Invalid' : 'Unknown (' + v.is_validated + ')';
+                    html += `<tr><td>${label}</td><td style="text-align:right">${v.count}</td></tr>`;
+                }
+                html += '</tbody></table>';
+            } else {
+                html += '<p>No validations yet</p>';
+            }
+            html += `<div style="display: flex; gap: 0.5rem; margin-top:0.5rem;">
+                    <button class="btn-outline-success" id="validate-valid-btn">Valid</button>
+                    <button class="btn-outline-danger" id="validate-invalid-btn">Invalid</button>
+                </div>`;
+            html += '</div>';
+
+            // 6. Similarity
+            const hideAgg = localStorage.getItem('hideAggregated') !== 'false';
+            const aggregatedIds = new Set(data.aggregation.as_main.map(a => a.canonical_ID_add));
+            const simRows = [
+                { id: data.canonical.ID, name: data.canonical.name, score: '-', validated: data.canonical.validated },
+                ...data.similarity.map(s => ({ id: s.canonical_ID2, name: s.name, score: s.score, validated: s.validated }))
+            ];
+            const hiddenAggCount = simRows.filter(s => s.validated <= 0 && aggregatedIds.has(s.id)).length;
+            html += `<div class="detail-section">
+                <h3 style="display:flex;justify-content:space-between;align-items:center;">
+                    <span>Similar (${data.similarity.length})</span>
+                    <label style="font-size:0.8rem;font-weight:normal;cursor:pointer;"><input type="checkbox" id="hide-aggregated" ${hideAgg ? 'checked' : ''}> hide aggregated (${hiddenAggCount})</label>
+                </h3>`;
+            if (data.similarity.length > 0) {
+                html += '<table><thead><tr><th><input type="checkbox" id="sim-select-all"></th><th>Name</th><th style="text-align:right">Score</th></tr></thead><tbody>';
+                for (const s of simRows) {
+                    const isValid = s.validated > 0;
+                    const isAgg = !isValid && aggregatedIds.has(s.id);
+                    const input = isValid
+                        ? `<input type="radio" name="sim-main" value="${s.id}">`
+                        : `<input type="checkbox" class="sim-check" value="${s.id}">`;
+                    html += `<tr${isAgg ? ' class="sim-aggregated"' : ''}${isAgg && hideAgg ? ' style="display:none"' : ''}><td>${input}</td><td>${clink(s.name, s.id)}</td><td style="text-align:right">${s.score}</td></tr>`;
+                }
+                html += '</tbody></table>';
+                html += `<div class="input-group" style="margin-top:0.5rem;">
+                    <div class="autocomplete-wrap" style="flex:1;">
+                        <input type="text" id="agg-main-input" placeholder="Main canonical..." style="width:100%">
+                        <div class="autocomplete-list" id="agg-main-suggestions"></div>
+                    </div>
+                    <button class="btn-primary" id="aggregate-btn">Aggregate</button>
+                </div>`;
+                html += `<div class="input-group" style="margin-top:0.35rem;">
+                    <div class="autocomplete-wrap" style="flex:1;">
+                        <input type="text" id="sim-resolve-input" placeholder="Resolve to..." style="width:100%">
+                        <div class="autocomplete-list" id="sim-resolve-suggestions"></div>
+                    </div>
+                    <button class="btn-primary" id="sim-resolve-btn">Resolve</button>
+                </div>`;
+            } else {
+                html += '<p>None</p>';
+            }
+            html += '</div>';
+
+            // 7. Aggregation
+            const aggTotal = data.aggregation.as_main.length + data.aggregation.as_add.length;
+            const hideRes = localStorage.getItem('hideResolved') !== 'false';
+            const resolvedPairs = new Set();
+            for (const r of data.resolution.resolves_to) resolvedPairs.add(data.canonical.ID + '-' + r.canonical_ID_to);
+            for (const r of data.resolution.resolved_from) resolvedPairs.add(r.canonical_ID_from + '-' + data.canonical.ID);
+            const hiddenResCount = data.aggregation.as_main.filter(a => resolvedPairs.has(a.canonical_ID_add + '-' + data.canonical.ID)).length
+                + data.aggregation.as_add.filter(a => resolvedPairs.has(data.canonical.ID + '-' + a.canonical_ID_main)).length;
+            html += `<div class="detail-section">
+                <h3 style="display:flex;justify-content:space-between;align-items:center;">
+                    <span>Aggregation (${aggTotal})</span>
+                    <label style="font-size:0.8rem;font-weight:normal;cursor:pointer;"><input type="checkbox" id="hide-resolved" ${hideRes ? 'checked' : ''}> hide resolved (${hiddenResCount})</label>
+                </h3>`;
+            if (aggTotal > 0) {
+                html += '<table><thead><tr><th><input type="checkbox" id="agg-select-all"></th><th>Member</th><th>Main</th><th style="text-align:right">Count</th></tr></thead><tbody>';
+                for (const a of data.aggregation.as_main) {
+                    const pairKey = a.canonical_ID_add + '-' + data.canonical.ID;
+                    const isRes = resolvedPairs.has(pairKey);
+                    html += `<tr${isRes ? ' class="agg-resolved"' : ''}${isRes && hideRes ? ' style="display:none"' : ''}><td><input type="checkbox" class="agg-check" data-from="${a.canonical_ID_add}" data-to="${data.canonical.ID}"></td><td>${clink(a.name, a.canonical_ID_add)}</td><td>${clink(data.canonical.name, data.canonical.ID)}</td><td style="text-align:right">${a.count}</td></tr>`;
+                }
+                for (const a of data.aggregation.as_add) {
+                    const pairKey = data.canonical.ID + '-' + a.canonical_ID_main;
+                    const isRes = resolvedPairs.has(pairKey);
+                    html += `<tr${isRes ? ' class="agg-resolved"' : ''}${isRes && hideRes ? ' style="display:none"' : ''}><td><input type="checkbox" class="agg-check" data-from="${data.canonical.ID}" data-to="${a.canonical_ID_main}"></td><td>${clink(data.canonical.name, data.canonical.ID)}</td><td>${clink(a.name, a.canonical_ID_main)}</td><td style="text-align:right">${a.count}</td></tr>`;
+                }
+                html += '</tbody></table>';
+                html += `<div class="input-group" style="margin-top:0.5rem;">
+                    <div class="autocomplete-wrap" style="flex:1;">
+                        <input type="text" id="agg-resolve-input" placeholder="Resolve to..." style="width:100%">
+                        <div class="autocomplete-list" id="agg-resolve-suggestions"></div>
+                    </div>
+                    <button class="btn-primary" id="agg-resolve-btn">Resolve</button>
+                </div>`;
+            } else {
+                html += '<p>None</p>';
+            }
+            html += '</div>';
+
+            // 8. Resolution
+            const resTotal = data.resolution.resolves_to.length + data.resolution.resolved_from.length;
+            html += `<div class="detail-section">
+                <h3>Resolution (${resTotal})</h3>`;
+            if (resTotal > 0) {
+                html += '<table><thead><tr><th><input type="checkbox" id="res-select-all"></th><th>From</th><th>To</th><th style="text-align:right">Count</th></tr></thead><tbody>';
+                for (const r of data.resolution.resolves_to) {
+                    html += `<tr><td><input type="checkbox" class="res-check" data-from="${data.canonical.ID}" data-to="${r.canonical_ID_to}"></td><td>${clink(data.canonical.name, data.canonical.ID)}</td><td>${clink(r.name, r.canonical_ID_to)}</td><td style="text-align:right">${r.count}</td></tr>`;
+                }
+                for (const r of data.resolution.resolved_from) {
+                    html += `<tr><td><input type="checkbox" class="res-check" data-from="${r.canonical_ID_from}" data-to="${data.canonical.ID}"></td><td>${clink(r.name, r.canonical_ID_from)}</td><td>${clink(data.canonical.name, data.canonical.ID)}</td><td style="text-align:right">${r.count}</td></tr>`;
+                }
+                html += '</tbody></table>';
+            } else {
+                html += '<p>None</p>';
+            }
+            html += `<div class="input-group" style="margin-top:0.5rem;">
+                <div class="autocomplete-wrap" style="flex:1;">
+                    <input type="text" id="resolve-input" placeholder="Search canonical..." style="width:100%">
+                    <div class="autocomplete-list" id="resolve-suggestions"></div>
+                </div>
+                <button class="btn-primary" id="resolve-btn">Change</button>
+            </div>`;
+            html += '</div>';
+
+            // Close regular view wrapper, add history view container
+            html += `</div>`;
+            html += `<div id="detail-history-view" style="display:none;"></div>`;
+
+            container.innerHTML = html;
+
+            // History toggle wiring
+            let historyLoaded = false;
+            const historyToggleBtn = document.getElementById('history-toggle-btn');
+            const regularView = document.getElementById('detail-regular-view');
+            const historyView = document.getElementById('detail-history-view');
+            historyToggleBtn.addEventListener('click', async () => {
+                const showing = historyView.style.display !== 'none';
+                if (showing) {
+                    historyView.style.display = 'none';
+                    regularView.style.display = '';
+                    historyToggleBtn.textContent = 'Show history';
+                } else {
+                    regularView.style.display = 'none';
+                    historyView.style.display = '';
+                    historyToggleBtn.textContent = 'Hide history';
+                    if (!historyLoaded) {
+                        historyLoaded = true;
+                        await loadHistory(id, historyView);
+                    }
+                }
+            });
+
+            // Canonical link navigation
+            container.addEventListener('click', (e) => {
+                const link = e.target.closest('.canonical-link');
+                if (!link) return;
+                e.preventDefault();
+                const targetId = parseInt(link.dataset.id);
+                if (targetId && targetId !== id) openDetailPanel(targetId);
+            });
+
+            // Hide aggregated toggle
+            const hideAggCb = document.getElementById('hide-aggregated');
+            if (hideAggCb) {
+                hideAggCb.addEventListener('change', () => {
+                    localStorage.setItem('hideAggregated', hideAggCb.checked);
+                    container.querySelectorAll('.sim-aggregated').forEach(tr => {
+                        tr.style.display = hideAggCb.checked ? 'none' : '';
+                    });
+                });
+            }
+
+            // Select-all checkbox
+            const selectAll = document.getElementById('sim-select-all');
+            if (selectAll) {
+                selectAll.addEventListener('change', () => {
+                    container.querySelectorAll('.sim-check').forEach(cb => { cb.checked = selectAll.checked; });
+                });
+            }
+
+            // Aggregate main input autocomplete
+            let aggMainTimer = null;
+            const aggMainInput = document.getElementById('agg-main-input');
+            const aggMainSuggestions = document.getElementById('agg-main-suggestions');
+            if (aggMainInput) {
+                aggMainInput.addEventListener('input', () => {
+                    clearTimeout(aggMainTimer);
+                    const q = aggMainInput.value.trim();
+                    if (q.length < 1) { aggMainSuggestions.style.display = 'none'; return; }
+                    aggMainTimer = setTimeout(async () => {
+                        try {
+                            const res = await fetch('/api/canonicals/search?q=' + encodeURIComponent(q));
+                            if (!res.ok) return;
+                            const d = await res.json();
+                            if (d.results.length === 0) { aggMainSuggestions.style.display = 'none'; return; }
+                            aggMainSuggestions.innerHTML = '';
+                            for (const r of d.results) {
+                                const div = document.createElement('div');
+                                div.className = 'autocomplete-item';
+                                div.textContent = r.name;
+                                div.addEventListener('mousedown', () => {
+                                    aggMainInput.value = r.name;
+                                    aggMainSuggestions.style.display = 'none';
+                                });
+                                aggMainSuggestions.appendChild(div);
+                            }
+                            aggMainSuggestions.style.display = 'block';
+                        } catch (err) { /* ignore */ }
+                    }, 300);
+                });
+                aggMainInput.addEventListener('blur', () => {
+                    setTimeout(() => { aggMainSuggestions.style.display = 'none'; }, 150);
+                });
+                aggMainInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') aggMainSuggestions.style.display = 'none';
+                });
+            }
+
+            // Aggregate button
+            const aggBtn = document.getElementById('aggregate-btn');
+            if (aggBtn) {
+                aggBtn.addEventListener('click', async () => {
+                    const addIds = [...container.querySelectorAll('.sim-check:checked')].map(cb => parseInt(cb.value));
+                    if (addIds.length === 0) { alert('Select at least one canonical to aggregate (checkbox).'); return; }
+                    const mainName = aggMainInput ? aggMainInput.value.trim() : '';
+                    const mainRadio = container.querySelector('input[name="sim-main"]:checked');
+                    const mainId = mainRadio ? parseInt(mainRadio.value) : 0;
+                    if (!mainName && !mainId) { alert('Enter a main canonical name or select one with the radio button.'); return; }
+                    const body = { add_ids: addIds };
+                    if (mainName) body.main_name = mainName; else body.main_id = mainId;
+                    try {
+                        const res = await fetch('/api/canonicals/aggregate', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(body),
+                        });
+                        if (res.status === 401) { window.location.href = '/signin'; return; }
+                        const resData = await res.json();
+                        if (!res.ok) { alert(resData.error || 'Aggregate failed.'); return; }
+                        openDetailPanel(id);
+                    } catch (err) {
+                        alert('Aggregate failed.');
+                    }
+                });
+            }
+
+            // Similarity resolve input autocomplete
+            let simResolveTimer = null;
+            const simResolveInput = document.getElementById('sim-resolve-input');
+            const simResolveSuggestions = document.getElementById('sim-resolve-suggestions');
+            if (simResolveInput) {
+                simResolveInput.addEventListener('input', () => {
+                    clearTimeout(simResolveTimer);
+                    const q = simResolveInput.value.trim();
+                    if (q.length < 1) { simResolveSuggestions.style.display = 'none'; return; }
+                    simResolveTimer = setTimeout(async () => {
+                        try {
+                            const res = await fetch('/api/canonicals/search?q=' + encodeURIComponent(q));
+                            if (!res.ok) return;
+                            const d = await res.json();
+                            if (d.results.length === 0) { simResolveSuggestions.style.display = 'none'; return; }
+                            simResolveSuggestions.innerHTML = '';
+                            for (const r of d.results) {
+                                const div = document.createElement('div');
+                                div.className = 'autocomplete-item';
+                                div.textContent = r.name;
+                                div.addEventListener('mousedown', () => {
+                                    simResolveInput.value = r.name;
+                                    simResolveSuggestions.style.display = 'none';
+                                });
+                                simResolveSuggestions.appendChild(div);
+                            }
+                            simResolveSuggestions.style.display = 'block';
+                        } catch (err) { /* ignore */ }
+                    }, 300);
+                });
+                simResolveInput.addEventListener('blur', () => {
+                    setTimeout(() => { simResolveSuggestions.style.display = 'none'; }, 150);
+                });
+                simResolveInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') simResolveSuggestions.style.display = 'none';
+                });
+            }
+
+            // Similarity resolve button (aggregate + resolve in one action)
+            const simResolveBtn = document.getElementById('sim-resolve-btn');
+            if (simResolveBtn) {
+                simResolveBtn.addEventListener('click', async () => {
+                    const addIds = [...container.querySelectorAll('.sim-check:checked')].map(cb => parseInt(cb.value));
+                    if (addIds.length === 0) { alert('Select at least one canonical (checkbox).'); return; }
+                    const targetName = simResolveInput ? simResolveInput.value.trim() : '';
+                    const mainRadio = container.querySelector('input[name="sim-main"]:checked');
+                    const mainId = mainRadio ? parseInt(mainRadio.value) : 0;
+                    if (!targetName && !mainId) { alert('Enter a target canonical name or select one with the radio button.'); return; }
+                    try {
+                        // 1. Aggregate
+                        const aggBody = { add_ids: addIds };
+                        if (targetName) aggBody.main_name = targetName; else aggBody.main_id = mainId;
+                        const aggRes = await fetch('/api/canonicals/aggregate', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(aggBody),
+                        });
+                        if (aggRes.status === 401) { window.location.href = '/signin'; return; }
+                        const aggData = await aggRes.json();
+                        if (!aggRes.ok) { alert(aggData.error || 'Aggregate step failed.'); return; }
+                        // 2. Resolve
+                        const resBody = { from_ids: addIds };
+                        if (targetName) resBody.to_name = targetName;
+                        else resBody.to_name = data.similarity.find(s => s.canonical_ID2 === mainId)?.name || data.canonical.name;
+                        const resRes = await fetch('/api/canonicals/bulk-resolve', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(resBody),
+                        });
+                        if (resRes.status === 401) { window.location.href = '/signin'; return; }
+                        const resData = await resRes.json();
+                        if (!resRes.ok) { alert(resData.error || 'Resolve step failed.'); return; }
+                        openDetailPanel(id);
+                    } catch (err) {
+                        alert('Resolve failed.');
+                    }
+                });
+            }
+
+            // Hide resolved toggle
+            const hideResCb = document.getElementById('hide-resolved');
+            if (hideResCb) {
+                hideResCb.addEventListener('change', () => {
+                    localStorage.setItem('hideResolved', hideResCb.checked);
+                    container.querySelectorAll('.agg-resolved').forEach(tr => {
+                        tr.style.display = hideResCb.checked ? 'none' : '';
+                    });
+                });
+            }
+
+            // Aggregation select-all
+            const aggSelectAll = document.getElementById('agg-select-all');
+            if (aggSelectAll) {
+                aggSelectAll.addEventListener('change', () => {
+                    container.querySelectorAll('.agg-check').forEach(cb => { cb.checked = aggSelectAll.checked; });
+                });
+            }
+
+            // Aggregation resolve input autocomplete
+            let aggResolveTimer = null;
+            const aggResolveInput = document.getElementById('agg-resolve-input');
+            const aggResolveSuggestions = document.getElementById('agg-resolve-suggestions');
+            if (aggResolveInput) {
+                aggResolveInput.addEventListener('input', () => {
+                    clearTimeout(aggResolveTimer);
+                    const q = aggResolveInput.value.trim();
+                    if (q.length < 1) { aggResolveSuggestions.style.display = 'none'; return; }
+                    aggResolveTimer = setTimeout(async () => {
+                        try {
+                            const res = await fetch('/api/canonicals/search?q=' + encodeURIComponent(q));
+                            if (!res.ok) return;
+                            const d = await res.json();
+                            if (d.results.length === 0) { aggResolveSuggestions.style.display = 'none'; return; }
+                            aggResolveSuggestions.innerHTML = '';
+                            for (const r of d.results) {
+                                const div = document.createElement('div');
+                                div.className = 'autocomplete-item';
+                                div.textContent = r.name;
+                                div.addEventListener('mousedown', () => {
+                                    aggResolveInput.value = r.name;
+                                    aggResolveSuggestions.style.display = 'none';
+                                });
+                                aggResolveSuggestions.appendChild(div);
+                            }
+                            aggResolveSuggestions.style.display = 'block';
+                        } catch (err) { /* ignore */ }
+                    }, 300);
+                });
+                aggResolveInput.addEventListener('blur', () => {
+                    setTimeout(() => { aggResolveSuggestions.style.display = 'none'; }, 150);
+                });
+                aggResolveInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') aggResolveSuggestions.style.display = 'none';
+                });
+            }
+
+            // Aggregation resolve button
+            const aggResolveBtn = document.getElementById('agg-resolve-btn');
+            if (aggResolveBtn) {
+                aggResolveBtn.addEventListener('click', async () => {
+                    const checked = [...container.querySelectorAll('.agg-check:checked')];
+                    if (checked.length === 0) { alert('Select at least one row to resolve.'); return; }
+                    const toName = aggResolveInput ? aggResolveInput.value.trim() : '';
+                    let body;
+                    if (toName) {
+                        const fromIds = checked.map(cb => parseInt(cb.dataset.from));
+                        body = { to_name: toName, from_ids: fromIds };
+                    } else {
+                        body = { pairs: checked.map(cb => ({ from_id: parseInt(cb.dataset.from), to_id: parseInt(cb.dataset.to) })) };
+                    }
+                    try {
+                        const res = await fetch('/api/canonicals/bulk-resolve', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(body),
+                        });
+                        if (res.status === 401) { window.location.href = '/signin'; return; }
+                        const resData = await res.json();
+                        if (!res.ok) { alert(resData.error || 'Resolve failed.'); return; }
+                        openDetailPanel(id);
+                    } catch (err) {
+                        alert('Resolve failed.');
+                    }
+                });
+            }
+
+            // Resolution select-all
+            const resSelectAll = document.getElementById('res-select-all');
+            if (resSelectAll) {
+                resSelectAll.addEventListener('change', () => {
+                    container.querySelectorAll('.res-check').forEach(cb => { cb.checked = resSelectAll.checked; });
+                });
+            }
+
+            // Attach event listeners
+            document.getElementById('google-btn').addEventListener('click', () => {
+                const query = document.getElementById('google-query').value.trim();
+                if (query) window.open('https://www.google.com/search?q=' + encodeURIComponent(query), '_blank');
+            });
+            document.getElementById('validate-valid-btn').addEventListener('click', () => validateCanonical(id, 1));
+            document.getElementById('validate-invalid-btn').addEventListener('click', () => validateCanonical(id, -1));
+
+            // Resolve autocomplete
+            let resolveTimer = null;
+            const resolveInput = document.getElementById('resolve-input');
+            const suggestionsEl = document.getElementById('resolve-suggestions');
+
+            resolveInput.addEventListener('input', () => {
+                clearTimeout(resolveTimer);
+                const q = resolveInput.value.trim();
+                if (q.length < 1) { suggestionsEl.style.display = 'none'; return; }
+                resolveTimer = setTimeout(async () => {
+                    try {
+                        const res = await fetch('/api/canonicals/search?q=' + encodeURIComponent(q));
+                        if (!res.ok) return;
+                        const data = await res.json();
+                        if (data.results.length === 0) { suggestionsEl.style.display = 'none'; return; }
+                        suggestionsEl.innerHTML = '';
+                        for (const r of data.results) {
+                            const div = document.createElement('div');
+                            div.className = 'autocomplete-item';
+                            div.textContent = r.name;
+                            div.addEventListener('mousedown', () => {
+                                resolveInput.value = r.name;
+                                suggestionsEl.style.display = 'none';
+                            });
+                            suggestionsEl.appendChild(div);
+                        }
+                        suggestionsEl.style.display = 'block';
+                    } catch (err) { /* ignore */ }
+                }, 300);
+            });
+
+            resolveInput.addEventListener('blur', () => {
+                setTimeout(() => { suggestionsEl.style.display = 'none'; }, 150);
+            });
+            resolveInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') suggestionsEl.style.display = 'none';
+            });
+
+            // Change button (update resolution target or create new resolution)
+            document.getElementById('resolve-btn').addEventListener('click', async () => {
+                const name = resolveInput.value.trim();
+                if (!name) { alert('Enter a canonical name.'); return; }
+                const checked = [...container.querySelectorAll('.res-check:checked')];
+                if (checked.length === 0) {
+                    // No rows selected: resolve current canonical to the entered name
+                    try {
+                        const res = await fetch('/api/canonicals/' + id + '/resolve', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name }),
+                        });
+                        if (res.status === 401) { window.location.href = '/signin'; return; }
+                        const data = await res.json();
+                        if (!res.ok) { alert(data.error || 'Resolve failed.'); return; }
+                        openDetailPanel(id);
+                    } catch (err) {
+                        alert('Resolve failed.');
+                    }
+                } else {
+                    // Rows selected: update existing resolution targets
+                    const pairs = checked.map(cb => ({ from_id: parseInt(cb.dataset.from), to_id: parseInt(cb.dataset.to) }));
+                    try {
+                        const res = await fetch('/api/canonicals/resolve-update', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ to_name: name, pairs }),
+                        });
+                        if (res.status === 401) { window.location.href = '/signin'; return; }
+                        const data = await res.json();
+                        if (!res.ok) { alert(data.error || 'Update failed.'); return; }
+                        openDetailPanel(id);
+                    } catch (err) {
+                        alert('Update failed.');
+                    }
+                }
+            });
+        }
+
+        async function validateCanonical(id, value) {
+            try {
+                const res = await fetch('/api/canonicals/' + id + '/validate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_validated: value }),
+                });
+                if (res.status === 401) { window.location.href = '/signin'; return; }
+                if (!res.ok) throw new Error('Validation failed');
+                // Refresh the detail panel
+                openDetailPanel(id);
+            } catch (err) {
+                alert('Validation failed.');
+            }
+        }
+
+        async function loadHistory(canonicalId, container) {
+            container.innerHTML = '<p>Loading history...</p>';
+            const user = await ensureCurrentUser();
+            try {
+                const res = await fetch('/api/canonicals/' + canonicalId + '/history');
+                if (res.status === 401) { window.location.href = '/signin'; return; }
+                if (!res.ok) throw new Error('Failed to load history');
+                const data = await res.json();
+                renderHistory(data, container, canonicalId, user);
+            } catch (err) {
+                container.innerHTML = '<p style="color:#c00;">Error loading history.</p>';
+            }
+        }
+
+        function renderHistory(data, container, canonicalId, user) {
+            const isAdmin = user && user.role >= 10;
+            const myId = user ? user.id : null;
+            function userLabel(uid) { return uid == myId ? 'You' : 'User #' + uid; }
+            function canDelete(uid) { return isAdmin || uid == myId; }
+
+            let html = '';
+
+            // Insertion section
+            if (data.insertion) {
+                const ins = data.insertion;
+                const delOk = canDelete(ins.user_ID);
+                html += `<div class="detail-section">
+                    <h3>Insertion</h3>
+                    <table><thead><tr>`;
+                if (delOk) html += `<th><input type="checkbox" class="hist-sel-all" data-section="ins"></th>`;
+                html += `<th>Date</th><th>User</th></tr></thead><tbody>`;
+                html += `<tr>`;
+                if (delOk) html += `<td><input type="checkbox" class="hist-check-ins" data-table="01_canonicals" data-key='${escapeHtml(JSON.stringify({ID: data.canonical.ID}))}' ></td>`;
+                html += `<td>${escapeHtml(ins.date || '')}</td><td>${userLabel(ins.user_ID)}</td></tr>`;
+                html += `</tbody></table>`;
+                if (delOk) html += `<button class="btn-outline-danger hist-delete-btn" data-section="ins" style="margin-top:0.4rem;font-size:0.8rem;">Delete selected</button>`;
+                html += `</div>`;
+            }
+
+            // Validation section
+            if (data.validation.length > 0) {
+                html += `<div class="detail-section">
+                    <h3>Validation (${data.validation.length})</h3>
+                    <table><thead><tr><th><input type="checkbox" class="hist-sel-all" data-section="val"></th><th>Date</th><th>User</th><th>Status</th></tr></thead><tbody>`;
+                for (const v of data.validation) {
+                    const delOk = canDelete(v.user_ID);
+                    const statusLabel = v.is_validated === 1 ? 'Valid' : v.is_validated === -1 ? 'Invalid' : 'Unknown';
+                    html += `<tr>`;
+                    html += `<td>${delOk ? `<input type="checkbox" class="hist-check-val" data-table="04_validated" data-key='${escapeHtml(JSON.stringify({canonical_ID: v.canonical_ID, user_ID: v.user_ID}))}'>` : ''}</td>`;
+                    html += `<td>${escapeHtml(v.date || '')}</td><td>${userLabel(v.user_ID)}</td><td>${statusLabel}</td></tr>`;
+                }
+                html += `</tbody></table>
+                    <button class="btn-outline-danger hist-delete-btn" data-section="val" style="margin-top:0.4rem;font-size:0.8rem;">Delete selected</button>
+                </div>`;
+            }
+
+            // Aggregation section
+            if (data.aggregation.length > 0) {
+                html += `<div class="detail-section">
+                    <h3>Aggregation (${data.aggregation.length})</h3>
+                    <table><thead><tr><th><input type="checkbox" class="hist-sel-all" data-section="agg"></th><th>Main</th><th>Add</th><th>Date</th><th>User</th></tr></thead><tbody>`;
+                for (const a of data.aggregation) {
+                    const delOk = canDelete(a.user_ID);
+                    html += `<tr>`;
+                    html += `<td>${delOk ? `<input type="checkbox" class="hist-check-agg" data-table="06_aggregated" data-key='${escapeHtml(JSON.stringify({canonical_ID_main: a.canonical_ID_main, canonical_ID_add: a.canonical_ID_add, user_ID: a.user_ID}))}'>` : ''}</td>`;
+                    html += `<td>${clink(a.main_name, a.canonical_ID_main)}</td><td>${clink(a.add_name, a.canonical_ID_add)}</td>`;
+                    html += `<td>${escapeHtml(a.date || '')}</td><td>${userLabel(a.user_ID)}</td></tr>`;
+                }
+                html += `</tbody></table>
+                    <button class="btn-outline-danger hist-delete-btn" data-section="agg" style="margin-top:0.4rem;font-size:0.8rem;">Delete selected</button>
+                </div>`;
+            }
+
+            // Resolution section
+            if (data.resolution.length > 0) {
+                html += `<div class="detail-section">
+                    <h3>Resolution (${data.resolution.length})</h3>
+                    <table><thead><tr><th><input type="checkbox" class="hist-sel-all" data-section="res"></th><th>From</th><th>To</th><th>Date</th><th>User</th></tr></thead><tbody>`;
+                for (const r of data.resolution) {
+                    const delOk = canDelete(r.user_ID);
+                    html += `<tr>`;
+                    html += `<td>${delOk ? `<input type="checkbox" class="hist-check-res" data-table="07_resolved_brands" data-key='${escapeHtml(JSON.stringify({canonical_ID_from: r.canonical_ID_from, canonical_ID_to: r.canonical_ID_to, user_ID: r.user_ID}))}'>` : ''}</td>`;
+                    html += `<td>${clink(r.from_name, r.canonical_ID_from)}</td><td>${clink(r.to_name, r.canonical_ID_to)}</td>`;
+                    html += `<td>${escapeHtml(r.date || '')}</td><td>${userLabel(r.user_ID)}</td></tr>`;
+                }
+                html += `</tbody></table>
+                    <button class="btn-outline-danger hist-delete-btn" data-section="res" style="margin-top:0.4rem;font-size:0.8rem;">Delete selected</button>
+                </div>`;
+            }
+
+            if (!data.insertion && data.validation.length === 0 && data.aggregation.length === 0 && data.resolution.length === 0) {
+                html += '<p>No history records found.</p>';
+            }
+
+            container.innerHTML = html;
+
+            // Select-all checkboxes
+            container.querySelectorAll('.hist-sel-all').forEach(cb => {
+                cb.addEventListener('change', () => {
+                    const section = cb.dataset.section;
+                    container.querySelectorAll(`.hist-check-${section}`).forEach(c => { c.checked = cb.checked; });
+                });
+            });
+
+            // Delete buttons
+            container.querySelectorAll('.hist-delete-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const section = btn.dataset.section;
+                    const checked = [...container.querySelectorAll(`.hist-check-${section}:checked`)];
+                    if (checked.length === 0) { alert('Select at least one row to delete.'); return; }
+
+                    const isInsertion = section === 'ins';
+                    const msg = isInsertion
+                        ? 'This will DELETE the entire canonical. Are you sure?'
+                        : `Delete ${checked.length} selected row(s)?`;
+                    if (!confirm(msg)) return;
+
+                    const items = checked.map(cb => ({ table: cb.dataset.table, key: JSON.parse(cb.dataset.key) }));
+                    try {
+                        const res = await fetch('/api/canonicals/' + canonicalId + '/history/delete', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ items }),
+                        });
+                        if (res.status === 401) { window.location.href = '/signin'; return; }
+                        const resData = await res.json();
+                        if (!res.ok) { alert(resData.error || 'Delete failed.'); return; }
+                        if (isInsertion) {
+                            window.location.href = '/canonicals_index';
+                            return;
+                        }
+                        await loadHistory(canonicalId, container);
+                    } catch (err) {
+                        alert('Delete failed.');
+                    }
+                });
+            });
+
+            // Canonical link navigation within history
+            container.addEventListener('click', (e) => {
+                const link = e.target.closest('.canonical-link');
+                if (!link) return;
+                e.preventDefault();
+                const targetId = parseInt(link.dataset.id);
+                if (targetId && targetId !== canonicalId) openDetailPanel(targetId);
+            });
+        }
+
+        // Close detail panel
+        document.getElementById('close-detail').addEventListener('click', () => {
+            selectedCanonicalId = null;
+            document.getElementById('canonicals-layout').classList.remove('has-detail');
+            document.querySelectorAll('#table-body tr.selected').forEach(tr => tr.classList.remove('selected'));
+        });
+
+        // Sort handlers
+        document.querySelectorAll('th.sortable').forEach(th => {
+            th.addEventListener('click', () => {
+                const col = th.dataset.col;
+                if (state.sort === col) {
+                    state.order = state.order === 'asc' ? 'desc' : 'asc';
+                } else {
+                    state.sort = col;
+                    state.order = 'asc';
+                }
+                state.page = 1;
+                loadData();
+            });
+        });
+
+        // Search
+        document.getElementById('search-btn').addEventListener('click', () => {
+            state.search = document.getElementById('search-input').value.trim();
+            state.page = 1;
+            loadData();
+        });
+        document.getElementById('search-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                state.search = e.target.value.trim();
+                state.page = 1;
+                loadData();
+            }
+        });
+        document.getElementById('clear-btn').addEventListener('click', () => {
+            document.getElementById('search-input').value = '';
+            state.search = '';
+            state.page = 1;
+            loadData();
+        });
+
+        // Pagination
+        document.getElementById('first-btn').addEventListener('click', () => { state.page = 1; loadData(); });
+        document.getElementById('prev-btn').addEventListener('click', () => { state.page = Math.max(1, state.page - 1); loadData(); });
+        document.getElementById('next-btn').addEventListener('click', () => { state.page = Math.min(state.pages, state.page + 1); loadData(); });
+        document.getElementById('last-btn').addEventListener('click', () => { state.page = state.pages; loadData(); });
+        document.getElementById('per-page').addEventListener('change', (e) => {
+            state.perPage = parseInt(e.target.value);
+            state.page = 1;
+            loadData();
+        });
+
+        // Sync
+        document.getElementById('sync-btn').addEventListener('click', () => triggerSync());
+
+        // Header dropdown toggle
+        document.getElementById('header-dropdown-toggle').addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.getElementById('header-dropdown').classList.toggle('open');
+        });
+        document.addEventListener('click', () => {
+            document.getElementById('header-dropdown').classList.remove('open');
+        });
+
+        // Sign out
+        document.getElementById('signout-btn').addEventListener('click', async () => {
+            await fetch('/auth/signout', { method: 'POST' });
+            window.location.href = '/signin';
+        });
+
+        // Activity / status (same as dashboard)
+        async function sendHeartbeat() {
+            try {
+                await fetch('/api/activity', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ page: 'canonicals_index' }),
+                });
+            } catch (err) { /* ignore */ }
+        }
+
+        async function updateActiveUsers() {
+            try {
+                const res = await fetch('/api/active-users');
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('active-users').textContent = `Active users: ${data.count}`;
+                }
+            } catch (err) { /* ignore */ }
+        }
+
+        let syncTriggered = false;
+        async function triggerSync() {
+            const el = document.getElementById('sync-status');
+            el.textContent = 'DB: syncing...';
+            try {
+                const res = await fetch('/api/brands/sync', { method: 'POST' });
+                if (res.ok) { updateSyncStatus(); } else { el.textContent = 'DB: sync failed'; }
+            } catch (err) { el.textContent = 'DB: sync failed'; }
+        }
+
+        async function updateSyncStatus() {
+            try {
+                const res = await fetch('/api/brands/sync-status');
+                const el = document.getElementById('sync-status');
+                if (!res.ok) { el.textContent = ''; return; }
+                const data = await res.json();
+                if (data.localState && data.localState.synced_at) {
+                    const ago = Date.now() - new Date(data.localState.synced_at).getTime();
+                    const mins = Math.floor(ago / 60000);
+                    let label;
+                    if (mins < 1) label = 'just now';
+                    else if (mins < 60) label = mins + 'm ago';
+                    else label = Math.floor(mins / 60) + 'h ago';
+                    el.textContent = 'DB synced: ' + label;
+                } else if (!syncTriggered) {
+                    syncTriggered = true;
+                    triggerSync();
+                } else {
+                    el.textContent = 'DB: not synced';
+                }
+            } catch (err) { /* ignore */ }
+        }
+
+        sendHeartbeat();
+        updateActiveUsers();
+        updateSyncStatus();
+        loadData();
+
+        setInterval(() => {
+            sendHeartbeat();
+            updateActiveUsers();
+            updateSyncStatus();
+        }, 30000);
+    </script>
+</body>
+</html>
